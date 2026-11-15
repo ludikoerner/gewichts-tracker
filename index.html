@@ -8,6 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Gewichts-Tracker</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
   <style>
     :root {
       --bg: #f1f5f9;
@@ -342,43 +343,69 @@
     document.getElementById("st-diff").innerText = `${sign}${diff.toFixed(2)} kg (${label})`;
     document.getElementById("st-meta").innerHTML = `Soll: <strong>${targetToday.toFixed(2)} kg</strong> · Ø letzte ${last7.length}: <strong>${avg7.toFixed(2)} kg</strong><br>${rateText}`;
 
-    const allDates = Array.from(new Set([goals.startDate, ...entries.map(e => e.date), goals.endDate])).sort();
-    const labels = allDates.map(formatDE);
+    // 3. Chart.js Diagramm mit echter Zeitachse
+    const sollData = [
+      { x: goals.startDate, y: goals.startWeight },
+      { x: goals.endDate, y: goals.goalWeight }
+    ];
 
-    const sollData = allDates.map(d => (d === goals.startDate ? goals.startWeight : d === goals.endDate ? goals.goalWeight : null));
-    const istData = allDates.map(d => {
-      const found = entries.find(e => e.date === d);
-      return found ? found.weight : null;
-    });
-    const trendData = allDates.map(d => {
-      const idx = entries.findIndex(e => e.date === d);
-      return idx !== -1 ? trendValues[idx] : null;
-    });
-    const progData = allDates.map(d => {
-      if (!prognosisPoint) return null;
-      if (d === latest.date) return trendValues[trendValues.length - 1];
-      if (d === prognosisPoint.date) return prognosisPoint.weight;
-      return null;
-    });
+    const istData = entries.map(e => ({ x: e.date, y: e.weight }));
+
+    const trendData = entries.map((e, idx) => ({
+      x: e.date,
+      y: trendValues[idx]
+    }));
+
+    const progData = prognosisPoint
+      ? [
+          { x: latest.date, y: trendValues[trendValues.length - 1] },
+          { x: prognosisPoint.date, y: prognosisPoint.weight }
+        ]
+      : [];
 
     if (chartInstance) chartInstance.destroy();
     const ctx = document.getElementById("weightChart").getContext("2d");
     chartInstance = new Chart(ctx, {
       type: "line",
       data: {
-        labels,
         datasets: [
-          { label: "Soll", data: sollData, borderColor: "#94a3b8", borderDash: [6, 6], borderWidth: 2, pointRadius: 0, spanGaps: true },
-          { label: "Messwerte", data: istData, borderColor: "#2563eb", backgroundColor: "#2563eb", borderWidth: 1.5, pointRadius: 3, spanGaps: true },
-          { label: "7-Tage-Trend", data: trendData, borderColor: "#f97316", borderWidth: 2.8, pointRadius: 0, spanGaps: true },
-          { label: "Prognose", data: progData, borderColor: "#f97316", borderDash: [4, 4], borderWidth: 2, pointRadius: 0, spanGaps: true }
+          { label: "Soll", data: sollData, borderColor: "#94a3b8", borderDash: [6, 6], borderWidth: 2, pointRadius: 0 },
+          { label: "Messwerte", data: istData, borderColor: "#2563eb", backgroundColor: "#2563eb", borderWidth: 1.5, pointRadius: 3 },
+          { label: "7-Tage-Trend", data: trendData, borderColor: "#f97316", borderWidth: 2.8, pointRadius: 0 },
+          { label: "Prognose", data: progData, borderColor: "#f97316", borderDash: [4, 4], borderWidth: 2, pointRadius: 0 }
         ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { position: "top", labels: { boxWidth: 12, font: { size: 11 } } } },
-        scales: { x: { ticks: { maxTicksLimit: 6, font: { size: 10 } } }, y: { ticks: { font: { size: 10 } } } }
+        plugins: {
+          legend: { position: "top", labels: { boxWidth: 12, font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              title: (items) => formatDE(items[0].raw.x)
+            }
+          }
+        },
+        scales: {
+          x: {
+            type: "time",
+            time: {
+              unit: "day",
+              tooltipFormat: "dd.MM.yyyy"
+            },
+            ticks: {
+              maxTicksLimit: 6,
+              font: { size: 10 },
+              callback: function(value) {
+                const d = new Date(value);
+                return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+              }
+            }
+          },
+          y: {
+            ticks: { font: { size: 10 } }
+          }
+        }
       }
     });
   }
