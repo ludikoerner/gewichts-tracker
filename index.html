@@ -247,11 +247,20 @@
     }
   }
 
-  function formatDE(isoDate) {
-    const [y, m, d] = isoDate.split("-");
-    return `${d}.${m}.${y}`;
+  function formatDE(dateInput) {
+    if (!dateInput) return "";
+    const str = String(dateInput).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+      const [y, m, d] = str.split("-");
+      return `${d}.${m}.${y}`;
+    }
+    const dObj = new Date(str);
+    if (!isNaN(dObj.getTime())) {
+      return dObj.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+    }
+    return str;
   }
-
+  
   function todayISO() {
     return new Date().toISOString().split("T")[0];
   }
