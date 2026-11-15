@@ -21,21 +21,28 @@
     }
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { margin: 0; background: var(--bg); color: var(--text); padding: 16px; max-width: 540px; margin-inline: auto; }
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
     h1 { font-size: 1.35rem; margin: 0; }
     .sub { font-size: 0.85rem; color: var(--muted); }
+    .sync-badge { font-size: 0.75rem; padding: 3px 8px; border-radius: 99px; background: #e2e8f0; color: #475569; display: inline-block; margin-top: 4px; }
+    .sync-ok { background: #dcfce7; color: #166534; }
+    
+    /* Profil Umschalter */
+    .profile-switch { display: grid; grid-template-columns: 1fr 1fr; background: #e2e8f0; padding: 4px; border-radius: 12px; margin-bottom: 14px; }
+    .profile-btn { padding: 8px; border-radius: 9px; font-size: 0.9rem; font-weight: 700; color: #475569; background: transparent; border: none; cursor: pointer; transition: 0.2s; }
+    .profile-btn.active { background: #ffffff; color: var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.08); }
+
     .card { background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
     input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 1rem; background: #f8fafc; }
     input:focus { outline: none; border-color: var(--primary); background: #fff; }
-    button { border: none; border-radius: 10px; padding: 12px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: 0.15s; }
+    button.action-btn { border: none; border-radius: 10px; padding: 12px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: 0.15s; }
     .btn-primary { background: var(--primary); color: white; width: 100%; margin-top: 12px; }
     .btn-primary:active { background: var(--primary-dark); transform: scale(0.99); }
-    .btn-ghost { background: transparent; color: var(--muted); font-size: 0.8rem; padding: 6px 10px; text-decoration: underline; }
-    .btn-danger { background: #fee2e2; color: #b91c1c; padding: 6px 10px; font-size: 0.8rem; border-radius: 8px; }
+    .btn-ghost { background: transparent; color: var(--muted); font-size: 0.8rem; padding: 6px 8px; text-decoration: underline; border: none; cursor: pointer; }
+    .btn-danger { background: #fee2e2; color: #b91c1c; padding: 6px 10px; font-size: 0.8rem; border-radius: 8px; border: none; cursor: pointer; }
     
-    /* Status Box */
     .status-box { border-radius: 12px; padding: 14px; margin-bottom: 14px; border: 1.5px solid; }
     .status-good { background: #f0fdf4; border-color: #86efac; color: #166534; }
     .status-bad { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
@@ -43,7 +50,6 @@
     .status-main { font-size: 1.1rem; font-weight: 800; margin-bottom: 6px; }
     .status-meta { font-size: 0.85rem; color: #334155; line-height: 1.45; }
 
-    /* Tabelle */
     .hist-list { max-height: 220px; overflow-y: auto; }
     .hist-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 4px; border-bottom: 1px solid var(--border); }
     .hist-item:last-child { border-bottom: none; }
@@ -53,15 +59,25 @@
 </head>
 <body>
 
+  <header>
+    <div>
+      <h1>Gewichts-Tracker</h1>
+      <div class="sub" id="goal-subtitle">Profil wählen oder starten</div>
+      <div class="sync-badge" id="sync-status">Bereit</div>
+    </div>
+    <button class="btn-ghost" id="btn-edit-goals" onclick="openSetup()">Ziele ändern</button>
+  </header>
+
+  <!-- PROFIL-UMSCHALTER -->
+  <div class="profile-switch">
+    <button class="profile-btn active" id="tab-Ich" onclick="switchProfile('Ich')">Ich</button>
+    <button class="profile-btn" id="tab-Freundin" onclick="switchProfile('Freundin')">Freundin</button>
+  </div>
+
   <!-- SETUP ANSICHT -->
   <div id="setup-view" class="hidden">
-    <header>
-      <div>
-        <h1>Gewichts-Tracker</h1>
-        <div class="sub">Einmaliges Ziel-Setup</div>
-      </div>
-    </header>
     <div class="card">
+      <div style="font-weight:700; margin-bottom:12px;" id="setup-heading">Ziel-Setup für Ich</div>
       <div class="grid-2">
         <div>
           <label>Startdatum</label>
@@ -80,21 +96,12 @@
           <input type="number" step="0.1" inputmode="decimal" id="setup-goal-weight" placeholder="78.0" />
         </div>
       </div>
-      <button class="btn-primary" onclick="saveSetup()">Ziele speichern & starten</button>
+      <button class="action-btn btn-primary" onclick="saveSetup()">Ziele speichern & starten</button>
     </div>
   </div>
 
   <!-- TRACKING ANSICHT -->
   <div id="app-view" class="hidden">
-    <header>
-      <div>
-        <h1>Gewichts-Tracker</h1>
-        <div class="sub" id="goal-subtitle">Ziel: --</div>
-      </div>
-      <button class="btn-ghost" onclick="openSetup()">Ziele ändern</button>
-    </header>
-
-    <!-- Eingabe -->
     <div class="card">
       <div class="grid-2">
         <div>
@@ -106,25 +113,22 @@
           <input type="number" step="0.1" inputmode="decimal" id="entry-weight" placeholder="z. B. 82.4" />
         </div>
       </div>
-      <button class="btn-primary" onclick="addEntry()">Speichern & Aktualisieren</button>
+      <button class="action-btn btn-primary" onclick="addEntry()">Speichern & Synchronisieren</button>
     </div>
 
-    <!-- Rote / Grüne Status Box -->
     <div id="status-box" class="status-box status-good">
       <div class="status-title" id="st-title">Status</div>
       <div class="status-main" id="st-diff">--</div>
       <div class="status-meta" id="st-meta">--</div>
     </div>
 
-    <!-- Graph -->
     <div class="card">
       <canvas id="weightChart"></canvas>
     </div>
 
-    <!-- Historie & Löschen -->
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <strong style="font-size:0.95rem;">Letzte Messungen</strong>
+        <strong style="font-size:0.95rem;" id="hist-heading">Letzte Messungen</strong>
         <button class="btn-ghost" onclick="exportCSV()">CSV-Backup</button>
       </div>
       <div class="hist-list" id="history-list"></div>
@@ -132,7 +136,10 @@
   </div>
 
 <script>
-  // --- PWA MANIFEST & ICON DYNAMISCH INJECTEN ---
+  // HIER DEINE GOOGLE APPS SCRIPT WEB-APP-URL EINFÜGEN:
+  const API_URL = "https://script.google.com/macros/s/AKfycbxH15_4xV-60DHh5wK7zAQVP30ZDdi6vG9K_d-w6Q8ACmUQKmSppENHTCNwDFQ3dtAU/exec";
+
+  // --- PWA MANIFEST ---
   (function setupPWA() {
     const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
       <rect width="512" height="512" rx="110" fill="#2563eb"/>
@@ -140,7 +147,6 @@
       <circle cx="402" cy="155" r="26" fill="#4ade80"/>
     </svg>`;
     const iconUrl = "data:image/svg+xml;base64," + btoa(svgIcon);
-
     const manifest = {
       name: "Gewichts-Tracker",
       short_name: "Gewicht",
@@ -148,28 +154,98 @@
       display: "standalone",
       background_color: "#f1f5f9",
       theme_color: "#2563eb",
-      icons: [
-        { src: iconUrl, sizes: "192x192", type: "image/svg+xml", purpose: "any maskable" },
-        { src: iconUrl, sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }
-      ]
+      icons: [{ src: iconUrl, sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }]
     };
-
-    const manifestBlob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
     const link = document.createElement("link");
     link.rel = "manifest";
-    link.href = URL.createObjectURL(manifestBlob);
+    link.href = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" }));
     document.head.appendChild(link);
-
-    const appleIcon = document.createElement("link");
-    appleIcon.rel = "apple-touch-icon";
-    appleIcon.href = iconUrl;
-    document.head.appendChild(appleIcon);
   })();
 
-  // --- APP LOGIK ---
-  const STORAGE_GOALS = "wt_goals_v1";
-  const STORAGE_ENTRIES = "wt_entries_v1";
+  let currentProfile = localStorage.getItem("wt_active_profile") || "Ich";
   let chartInstance = null;
+
+  function goalsKey() { return `wt_goals_${currentProfile}`; }
+  function entriesKey() { return `wt_entries_${currentProfile}`; }
+
+  function setSyncBadge(text, isOk = false) {
+    const el = document.getElementById("sync-status");
+    if (!el) return;
+    el.innerText = text;
+    el.className = isOk ? "sync-badge sync-ok" : "sync-badge";
+  }
+
+  function updateProfileTabs() {
+    document.getElementById("tab-Ich").classList.toggle("active", currentProfile === "Ich");
+    document.getElementById("tab-Freundin").classList.toggle("active", currentProfile === "Freundin");
+  }
+
+  async function switchProfile(profile) {
+    currentProfile = profile;
+    localStorage.setItem("wt_active_profile", profile);
+    updateProfileTabs();
+    
+    // Sofort lokale Daten des gewählten Profils anzeigen, dann Cloud abrufen
+    if (getGoals()) {
+      showApp(false);
+    } else {
+      openSetup();
+    }
+    await syncFromCloud();
+  }
+
+  async function syncFromCloud() {
+    if (!API_URL.startsWith("http")) {
+      setSyncBadge("Nur lokal (API_URL fehlt)");
+      return;
+    }
+    const targetProfile = currentProfile;
+    setSyncBadge(`Lade ${targetProfile} aus Cloud...`);
+    try {
+      const url = `${API_URL}?profile=${encodeURIComponent(targetProfile)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      
+      // Nur anwenden, falls der Nutzer nicht inzwischen das Tab gewechselt hat
+      if (targetProfile !== currentProfile) return;
+
+      if (data.goals) {
+        localStorage.setItem(goalsKey(), JSON.stringify(data.goals));
+      } else {
+        localStorage.removeItem(goalsKey());
+      }
+
+      if (Array.isArray(data.entries)) {
+        localStorage.setItem(entriesKey(), JSON.stringify(data.entries));
+      }
+
+      setSyncBadge(`✓ ${targetProfile} synchronisiert`, true);
+      if (getGoals()) {
+        showApp(false);
+      } else {
+        openSetup();
+      }
+    } catch (err) {
+      setSyncBadge("Offline-Modus (lokale Daten)");
+    }
+  }
+
+  async function pushToCloud(payload) {
+    if (!API_URL.startsWith("http")) return;
+    payload.profile = currentProfile;
+    setSyncBadge(`Speichere (${currentProfile})...`);
+    try {
+      await fetch(API_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(payload)
+      });
+      setSyncBadge(`✓ ${currentProfile} gespeichert`, true);
+    } catch (err) {
+      setSyncBadge("Fehler beim Cloud-Sync");
+    }
+  }
 
   function formatDE(isoDate) {
     const [y, m, d] = isoDate.split("-");
@@ -181,28 +257,33 @@
   }
 
   function getGoals() {
-    const raw = localStorage.getItem(STORAGE_GOALS);
+    const raw = localStorage.getItem(goalsKey());
     return raw ? JSON.parse(raw) : null;
   }
 
   function getEntries() {
-    const raw = localStorage.getItem(STORAGE_ENTRIES);
+    const raw = localStorage.getItem(entriesKey());
     const list = raw ? JSON.parse(raw) : [];
     return list.sort((a, b) => a.date.localeCompare(b.date));
   }
 
-  function init() {
-    const goals = getGoals();
-    if (!goals) {
-      openSetup();
+  async function init() {
+    updateProfileTabs();
+    if (getGoals()) {
+      showApp(false);
     } else {
-      showApp();
+      openSetup();
     }
+    await syncFromCloud();
   }
 
   function openSetup() {
     document.getElementById("setup-view").classList.remove("hidden");
     document.getElementById("app-view").classList.add("hidden");
+    document.getElementById("btn-edit-goals").classList.add("hidden");
+    document.getElementById("goal-subtitle").innerText = `Setup für ${currentProfile}`;
+    document.getElementById("setup-heading").innerText = `Ziele festlegen (${currentProfile})`;
+
     const goals = getGoals();
     document.getElementById("setup-start-date").value = goals ? goals.startDate : todayISO();
     document.getElementById("setup-end-date").value = goals ? goals.endDate : "2026-12-31";
@@ -210,7 +291,7 @@
     document.getElementById("setup-goal-weight").value = goals ? goals.goalWeight : "";
   }
 
-  function saveSetup() {
+  async function saveSetup() {
     const startDate = document.getElementById("setup-start-date").value;
     const endDate = document.getElementById("setup-end-date").value;
     const startWeight = parseFloat(document.getElementById("setup-start-weight").value);
@@ -221,28 +302,34 @@
       return;
     }
 
-    localStorage.setItem(STORAGE_GOALS, JSON.stringify({ startDate, endDate, startWeight, goalWeight }));
-    
+    const goalsObj = { startDate, endDate, startWeight, goalWeight };
+    localStorage.setItem(goalsKey(), JSON.stringify(goalsObj));
+    await pushToCloud({ action: "saveGoals", goals: goalsObj });
+
     const entries = getEntries();
     if (!entries.some(e => e.date === startDate)) {
-      entries.push({ date: startDate, weight: startWeight });
-      localStorage.setItem(STORAGE_ENTRIES, JSON.stringify(entries));
+      const firstEntry = { date: startDate, weight: startWeight };
+      entries.push(firstEntry);
+      localStorage.setItem(entriesKey(), JSON.stringify(entries));
+      await pushToCloud({ action: "saveEntry", entry: firstEntry });
     }
-    showApp();
+    showApp(false);
   }
 
-  function showApp() {
+  function showApp(triggerSync = true) {
     document.getElementById("setup-view").classList.add("hidden");
     document.getElementById("app-view").classList.remove("hidden");
+    document.getElementById("btn-edit-goals").classList.remove("hidden");
     document.getElementById("entry-date").value = todayISO();
     
     const goals = getGoals();
-    document.getElementById("goal-subtitle").innerText = `Ziel: ${goals.goalWeight.toFixed(1)} kg bis ${formatDE(goals.endDate)}`;
-    
+    document.getElementById("goal-subtitle").innerText = `Ziel (${currentProfile}): ${goals.goalWeight.toFixed(1)} kg bis ${formatDE(goals.endDate)}`;
+    document.getElementById("hist-heading").innerText = `Letzte Messungen (${currentProfile})`;
     renderAll();
+    if (triggerSync) syncFromCloud();
   }
 
-  function addEntry() {
+  async function addEntry() {
     const date = document.getElementById("entry-date").value;
     const weight = parseFloat(document.getElementById("entry-weight").value);
     if (!date || isNaN(weight)) {
@@ -250,18 +337,23 @@
       return;
     }
 
+    const entryObj = { date, weight };
     let entries = getEntries().filter(e => e.date !== date);
-    entries.push({ date, weight });
-    localStorage.setItem(STORAGE_ENTRIES, JSON.stringify(entries));
+    entries.push(entryObj);
+    localStorage.setItem(entriesKey(), JSON.stringify(entries));
     document.getElementById("entry-weight").value = "";
     renderAll();
+
+    await pushToCloud({ action: "saveEntry", entry: entryObj });
   }
 
-  function deleteEntry(date) {
-    if (!confirm(`Messung vom ${formatDE(date)} löschen?`)) return;
+  async function deleteEntry(date) {
+    if (!confirm(`Messung vom ${formatDE(date)} (${currentProfile}) löschen?`)) return;
     const entries = getEntries().filter(e => e.date !== date);
-    localStorage.setItem(STORAGE_ENTRIES, JSON.stringify(entries));
+    localStorage.setItem(entriesKey(), JSON.stringify(entries));
     renderAll();
+
+    await pushToCloud({ action: "deleteEntry", date });
   }
 
   function editEntry(date, weight) {
@@ -294,7 +386,10 @@
       </div>
     `).join("");
 
-    if (entries.length === 0) return;
+    if (entries.length === 0) {
+      if (chartInstance) chartInstance.destroy();
+      return;
+    }
 
     const latest = entries[entries.length - 1];
     const targetToday = calcTargetAt(latest.date, goals);
@@ -337,30 +432,20 @@
 
     const box = document.getElementById("status-box");
     box.className = `status-box ${onTrack ? "status-good" : "status-bad"}`;
-    document.getElementById("st-title").innerText = `Status vom ${formatDE(latest.date)}`;
+    document.getElementById("st-title").innerText = `Status (${currentProfile}) vom ${formatDE(latest.date)}`;
     const sign = diff > 0 ? "+" : "";
     const label = onTrack ? (isLossGoal ? "leichter als Soll" : "im Plan") : (isLossGoal ? "schwerer als Soll" : "unter Soll");
     document.getElementById("st-diff").innerText = `${sign}${diff.toFixed(2)} kg (${label})`;
     document.getElementById("st-meta").innerHTML = `Soll: <strong>${targetToday.toFixed(2)} kg</strong> · Ø letzte ${last7.length}: <strong>${avg7.toFixed(2)} kg</strong><br>${rateText}`;
 
-    // 3. Chart.js Diagramm mit echter Zeitachse
     const sollData = [
       { x: goals.startDate, y: goals.startWeight },
       { x: goals.endDate, y: goals.goalWeight }
     ];
-
     const istData = entries.map(e => ({ x: e.date, y: e.weight }));
-
-    const trendData = entries.map((e, idx) => ({
-      x: e.date,
-      y: trendValues[idx]
-    }));
-
+    const trendData = entries.map((e, idx) => ({ x: e.date, y: trendValues[idx] }));
     const progData = prognosisPoint
-      ? [
-          { x: latest.date, y: trendValues[trendValues.length - 1] },
-          { x: prognosisPoint.date, y: prognosisPoint.weight }
-        ]
+      ? [{ x: latest.date, y: trendValues[trendValues.length - 1] }, { x: prognosisPoint.date, y: prognosisPoint.weight }]
       : [];
 
     if (chartInstance) chartInstance.destroy();
@@ -380,31 +465,19 @@
         maintainAspectRatio: false,
         plugins: {
           legend: { position: "top", labels: { boxWidth: 12, font: { size: 11 } } },
-          tooltip: {
-            callbacks: {
-              title: (items) => formatDE(items[0].raw.x)
-            }
-          }
+          tooltip: { callbacks: { title: (items) => formatDE(items[0].raw.x) } }
         },
         scales: {
           x: {
             type: "time",
-            time: {
-              unit: "day",
-              tooltipFormat: "dd.MM.yyyy"
-            },
+            time: { unit: "day", tooltipFormat: "dd.MM.yyyy" },
             ticks: {
               maxTicksLimit: 6,
               font: { size: 10 },
-              callback: function(value) {
-                const d = new Date(value);
-                return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
-              }
+              callback: (val) => new Date(val).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })
             }
           },
-          y: {
-            ticks: { font: { size: 10 } }
-          }
+          y: { ticks: { font: { size: 10 } } }
         }
       }
     });
@@ -416,7 +489,7 @@
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "gewichts_backup.csv";
+    a.download = `gewichts_backup_${currentProfile}.csv`;
     a.click();
   }
 
