@@ -70,8 +70,8 @@
 
   <!-- PROFIL-UMSCHALTER -->
   <div class="profile-switch">
-    <button class="profile-btn active" id="tab-Ich" onclick="switchProfile('Ich')">Ich</button>
-    <button class="profile-btn" id="tab-Freundin" onclick="switchProfile('Freundin')">Freundin</button>
+    <button class="profile-btn active" id="tab-Ludwig" onclick="switchProfile('Ludwig')">Ludwig</button>
+    <button class="profile-btn" id="tab-Hannah" onclick="switchProfile('Hannah')">Hannah</button>
   </div>
 
   <!-- SETUP ANSICHT -->
@@ -162,7 +162,7 @@
     document.head.appendChild(link);
   })();
 
-  let currentProfile = localStorage.getItem("wt_active_profile") || "Ich";
+  let currentProfile = localStorage.getItem("wt_active_profile") || "Ludwig";
   let chartInstance = null;
 
   function goalsKey() { return `wt_goals_${currentProfile}`; }
@@ -176,8 +176,8 @@
   }
 
   function updateProfileTabs() {
-    document.getElementById("tab-Ich").classList.toggle("active", currentProfile === "Ich");
-    document.getElementById("tab-Freundin").classList.toggle("active", currentProfile === "Freundin");
+    document.getElementById("tab-Ludwig").classList.toggle("active", currentProfile === "Ludwig");
+    document.getElementById("tab-Hannah").classList.toggle("active", currentProfile === "Hannah");
   }
 
   async function switchProfile(profile) {
