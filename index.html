@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Gewichts-Tracker</title>
-  <link rel="stylesheet" href="style.css?v=2" />
+  <link rel="stylesheet" href="style.css?v=3" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 </head>
@@ -91,6 +91,15 @@
       </div>
     </div>
 
+    <!-- TROPHÄEN-REGAL -->
+    <div class="card">
+      <div class="trophy-header">
+        <strong style="font-size:0.95rem;">Trophäen-Regal</strong>
+        <span class="sub" id="trophy-count">0 / 9</span>
+      </div>
+      <div class="trophy-grid" id="trophy-grid"></div>
+    </div>
+
     <div class="card">
       <div class="chart-header">
         <strong style="font-size:0.95rem;">Verlauf</strong>
@@ -111,6 +120,18 @@
     </div>
   </div>
 
-  <script src="app.js?v=2"></script>
+  <!-- BELOHNUNGS-POP-UP MODAL -->
+  <div id="reward-modal" class="modal-backdrop hidden">
+    <div class="confetti-layer" id="confetti-layer"></div>
+    <div class="modal-card">
+      <div class="modal-icon" id="modal-icon">🎉</div>
+      <div class="modal-badge-label" id="modal-tag">MEILENSTEIN ERREICHT</div>
+      <h2 class="modal-title" id="modal-title">Stark!</h2>
+      <p class="modal-text" id="modal-text">Nachricht</p>
+      <button class="action-btn btn-primary" onclick="closeRewardModal()">Weiter so!</button>
+    </div>
+  </div>
+
+  <script src="app.js?v=3"></script>
 </body>
 </html>
