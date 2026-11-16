@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Gewichts-Tracker</title>
-  <link rel="stylesheet" href="style.css?v=1" />
+  <link rel="stylesheet" href="style.css?v=2" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 </head>
@@ -22,7 +22,7 @@
     <button class="btn-ghost" id="btn-edit-goals" onclick="openSetup()">Ziele ändern</button>
   </header>
 
-  <!-- PROFIL-UMSCHALTER -->
+  <!-- PROFIL-UMSCHALTER INKL. STREAK-BADGES -->
   <div class="profile-switch">
     <button class="profile-btn active" id="tab-Ludwig" onclick="switchProfile('Ludwig')">Ludwig</button>
     <button class="profile-btn" id="tab-Hannah" onclick="switchProfile('Hannah')">Hannah</button>
@@ -74,10 +74,21 @@
       <button class="action-btn btn-primary" onclick="addEntry()">Speichern & Synchronisieren</button>
     </div>
 
+    <!-- STATUS BOX INKL. FORTSCHRITTSBALKEN -->
     <div id="status-box" class="status-box status-good">
       <div class="status-title" id="st-title">Status</div>
       <div class="status-main" id="st-diff">--</div>
       <div class="status-meta" id="st-meta">--</div>
+
+      <div class="progress-wrapper">
+        <div class="progress-labels">
+          <span id="prog-pct">0 % geschafft</span>
+          <span id="prog-rem">noch -- kg</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="prog-fill" style="width: 0%;"></div>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -100,6 +111,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=1"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
