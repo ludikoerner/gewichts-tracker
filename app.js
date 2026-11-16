@@ -1,6 +1,3 @@
-// HIER DEINE GOOGLE APPS SCRIPT WEB-APP-URL EINFÜGEN:
-const API_URL = "https://script.google.com/macros/s/AKfycbxH15_4xV-60DHh5wK7zAQVP30ZDdi6vG9K_d-w6Q8ACmUQKmSppENHTCNwDFQ3dtAU/exec";
-
 // --- PWA MANIFEST ---
 (function setupPWA() {
   const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
