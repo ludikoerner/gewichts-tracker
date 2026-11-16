@@ -261,9 +261,23 @@
     return str;
   }
   
-  function todayISO() {
-    return new Date().toISOString().split("T")[0];
+ function todayISO() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
   }
+
+  // Aktualisiert das Datum automatisch auf "heute", wenn die App aus dem Hintergrund geholt wird
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      const dateInput = document.getElementById("entry-date");
+      if (dateInput) {
+        dateInput.value = todayISO();
+      }
+    }
+  });
 
   function getGoals() {
     const raw = localStorage.getItem(goalsKey());
