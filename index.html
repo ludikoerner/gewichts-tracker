@@ -91,15 +91,7 @@
       </div>
     </div>
 
-    <!-- TROPHÄEN-REGAL -->
-    <div class="card">
-      <div class="trophy-header">
-        <strong style="font-size:0.95rem;">Trophäen-Regal</strong>
-        <span class="sub" id="trophy-count">0 / 9</span>
-      </div>
-      <div class="trophy-grid" id="trophy-grid"></div>
-    </div>
-
+    <!-- VERLAUFS-GRAPH -->
     <div class="card">
       <div class="chart-header">
         <strong style="font-size:0.95rem;">Verlauf</strong>
@@ -111,12 +103,22 @@
       <canvas id="weightChart"></canvas>
     </div>
 
+    <!-- LETZTE MESSUNGEN -->
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
         <strong style="font-size:0.95rem;" id="hist-heading">Letzte Messungen</strong>
         <button class="btn-ghost" onclick="exportCSV()">CSV-Backup</button>
       </div>
       <div class="hist-list" id="history-list"></div>
+    </div>
+
+    <!-- TROPHÄEN-REGAL (GANZ UNTEN) -->
+    <div class="card">
+      <div class="trophy-header">
+        <strong style="font-size:0.95rem;">Trophäen-Regal</strong>
+        <span class="sub" id="trophy-count">0 / 9</span>
+      </div>
+      <div class="trophy-grid" id="trophy-grid"></div>
     </div>
   </div>
 
@@ -132,6 +134,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=3"></script>
+  <script src="config.js"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
