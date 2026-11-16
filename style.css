@@ -18,6 +18,8 @@
   --danger-bg: #fee2e2;
   --danger-text: #b91c1c;
   --track-bg: rgba(0, 0, 0, 0.08);
+  --trophy-unlocked-bg: #eff6ff;
+  --trophy-unlocked-border: #93c5fd;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -41,6 +43,8 @@
     --danger-bg: rgba(185, 28, 28, 0.25);
     --danger-text: #fca5a5;
     --track-bg: rgba(255, 255, 255, 0.12);
+    --trophy-unlocked-bg: rgba(59, 130, 246, 0.18);
+    --trophy-unlocked-border: #3b82f6;
   }
 }
 
@@ -97,8 +101,79 @@ button.action-btn { border: none; border-radius: 10px; padding: 12px; font-size:
 .status-good .progress-fill { background: #16a34a; }
 .status-bad .progress-fill { background: #dc2626; }
 
+/* Trophäen-Regal */
+.trophy-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.trophy-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.trophy-item {
+  border-radius: 10px;
+  padding: 8px 4px;
+  text-align: center;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  opacity: 0.4;
+  filter: grayscale(100%);
+  transition: 0.2s;
+  cursor: pointer;
+}
+.trophy-item.unlocked {
+  opacity: 1;
+  filter: none;
+  background: var(--trophy-unlocked-bg);
+  border-color: var(--trophy-unlocked-border);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.12);
+}
+.trophy-icon { font-size: 1.35rem; line-height: 1.2; }
+.trophy-label { font-size: 0.68rem; font-weight: 700; color: var(--text); margin-top: 3px; }
+
+/* Pop-up Modal & Konfetti */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 999;
+}
+.modal-card {
+  position: relative;
+  background: var(--card);
+  border: 2px solid var(--primary);
+  border-radius: 20px;
+  padding: 24px 20px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+  animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 2;
+}
+.modal-icon { font-size: 3.2rem; margin-bottom: 8px; line-height: 1.1; }
+.modal-badge-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; color: var(--primary); margin-bottom: 6px; }
+.modal-title { font-size: 1.25rem; margin: 0 0 10px 0; color: var(--text); }
+.modal-text { font-size: 0.98rem; line-height: 1.5; color: var(--text); margin: 0 0 16px 0; }
+
+.confetti-layer { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
+.confetti-piece {
+  position: absolute;
+  top: -20px;
+  font-size: 1.3rem;
+  animation: confettiFall linear forwards;
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.75); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes confettiFall {
+  to { transform: translateY(105vh) rotate(540deg); opacity: 0; }
+}
+
 .hist-list { max-height: 220px; overflow-y: auto; }
 .hist-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 4px; border-bottom: 1px solid var(--border); }
 .hist-item:last-child { border-bottom: none; }
-.hidden { display: none; }
+.hidden { display: none !important; }
 canvas { width: 100% !important; height: 270px !important; }
