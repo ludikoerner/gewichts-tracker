@@ -28,9 +28,133 @@ const PROFILES = ["Ludwig", "Hannah"];
 let currentProfile = localStorage.getItem("wt_active_profile") || "Ludwig";
 let chartZoom = localStorage.getItem("wt_chart_zoom") || "all";
 let chartInstance = null;
+let rewardQueue = [];
 
 function goalsKey(prof = currentProfile) { return `wt_goals_${prof}`; }
 function entriesKey(prof = currentProfile) { return `wt_entries_${prof}`; }
+function rewardsKey(prof = currentProfile) { return `wt_rewards_${prof}`; }
+
+// --- MEILENSTEIN-DEFINITIONEN ---
+function getMilestoneDefinitions(prof) {
+  const isHannah = prof === "Hannah";
+  return [
+    // Streaks
+    {
+      id: "streak_5",
+      type: "streak",
+      threshold: 5,
+      shelfIcon: "🔥",
+      shelfLabel: "5 Tage",
+      tag: "5-TAGE-STREAK",
+      modalIcon: "🔥",
+      title: "5 Tage in Folge!",
+      text: `Stark gestartet, ${prof}! Die erste Hürde ist genommen – Routine schlägt Motivation.`
+    },
+    {
+      id: "streak_10",
+      type: "streak",
+      threshold: 10,
+      shelfIcon: "⚡",
+      shelfLabel: "10 Tage",
+      tag: "10-TAGE-STREAK",
+      modalIcon: "⚡",
+      title: "10 Tage Streak!",
+      text: "Zweistellig! Zehn Tage lückenlos drangeblieben. Das wird langsam zur Gewohnheit."
+    },
+    {
+      id: "streak_25",
+      type: "streak",
+      threshold: 25,
+      shelfIcon: "🥉",
+      shelfLabel: "25 Tage",
+      tag: "25-TAGE-STREAK",
+      modalIcon: "🏅",
+      title: "25 Tage am Stück!",
+      text: `Ein Vierteljahrhundert! Deine Konstanz ist beeindruckend, ${prof}.`
+    },
+    {
+      id: "streak_50",
+      type: "streak",
+      threshold: 50,
+      shelfIcon: "🥈",
+      shelfLabel: "50 Tage",
+      tag: "50-TAGE-STREAK",
+      modalIcon: "🚀",
+      title: "50 Tage Streak!",
+      text: "50 Tage ohne Ausnahme – absolute Maschinen-Mentalität!"
+    },
+    {
+      id: "streak_100",
+      type: "streak",
+      threshold: 100,
+      shelfIcon: "👑",
+      shelfLabel: "100 Tage",
+      tag: "100-TAGE-STREAK",
+      modalIcon: "👑",
+      title: "100 Tage Legende!",
+      text: "Dreistellig! 100 Tage durchgezogen – das macht euch so schnell keiner nach."
+    },
+
+    // Ziel-Fortschritt (persönlich für Hannah vs. sportlich für Ludwig)
+    {
+      id: "pct_10",
+      type: "pct",
+      threshold: 10,
+      shelfIcon: "🌱",
+      shelfLabel: "10 %",
+      tag: "10 % ZIEL ERREICHT",
+      modalIcon: isHannah ? "😘" : "🌱",
+      title: isHannah ? "Aller Anfang ist schwer 😘" : "10 % geschafft!",
+      text: isHannah
+        ? "Hier ein Bussi damit du dran bleibst 😘"
+        : "Der Anfang ist gemacht, Ludwig! Die ersten 10 % liegen hinter dir."
+    },
+    {
+      id: "pct_25",
+      type: "pct",
+      threshold: 25,
+      shelfIcon: isHannah ? "😘" : "🎯",
+      shelfLabel: "25 %",
+      tag: "25 % ZIEL ERREICHT",
+      modalIcon: isHannah ? "😘😘" : "🎯",
+      title: isHannah ? "Jetzt geht es richtig los 😘😘" : "Viertel-Meile: 25 %!",
+      text: isHannah
+        ? "Bleib dran Schatzimausibussibärli 😘😘"
+        : "Ein Viertel des Weges ist geschafft – dein Kurs stimmt!"
+    },
+    {
+      id: "pct_50",
+      type: "pct",
+      threshold: 50,
+      shelfIcon: isHannah ? "❤️" : "🏔️",
+      shelfLabel: "50 %",
+      tag: "50 % ZIEL ERREICHT",
+      modalIcon: isHannah ? "❤️" : "🏔️",
+      title: isHannah ? "Zur Hälfte hast du es geschafft ❤️" : "Bergfest: 50 %!",
+      text: isHannah
+        ? "Ich glaub an dich ❤️"
+        : "Halbzeit, Ludwig! Ab jetzt geht es auf der Zielgeraden bergab (im besten Sinne)."
+    },
+    {
+      id: "pct_100",
+      type: "pct",
+      threshold: 100,
+      shelfIcon: "🏆",
+      shelfLabel: "100 %",
+      tag: "100 % ZIEL ERREICHT",
+      modalIcon: isHannah ? "❤️❤️❤️" : "🏆",
+      title: isHannah ? "Du hast es geschafft ❤️❤️❤️" : "ZIEL ERREICHT: 100 %!",
+      text: isHannah
+        ? "Ich bin soooo stolz auf dich ❤️❤️❤️"
+        : "Wahnsinn, Ludwig! Du hast dein Zielgewicht geknackt. Zeit zum Feiern!"
+    }
+  ];
+}
+
+function getUnlockedRewards(prof = currentProfile) {
+  const raw = localStorage.getItem(rewardsKey(prof));
+  return raw ? JSON.parse(raw) : [];
+}
 
 function setSyncBadge(text, isOk = false) {
   const el = document.getElementById("sync-status");
@@ -39,7 +163,6 @@ function setSyncBadge(text, isOk = false) {
   el.className = isOk ? "sync-badge sync-ok" : "sync-badge";
 }
 
-// Berechnet die lückenlose Tage-Streak (aktiv ab heute oder gestern)
 function calculateStreak(prof) {
   const entries = getEntries(prof);
   if (entries.length === 0) return 0;
@@ -65,6 +188,23 @@ function calculateStreak(prof) {
   return streak;
 }
 
+function calculateProgressPct(prof) {
+  const goals = getGoals(prof);
+  const entries = getEntries(prof);
+  if (!goals || entries.length === 0) return 0;
+
+  const latest = entries[entries.length - 1];
+  const isLossGoal = goals.goalWeight <= goals.startWeight;
+  const totalDelta = Math.abs(goals.startWeight - goals.goalWeight);
+  if (totalDelta <= 0) return 0;
+
+  const achievedDelta = isLossGoal
+    ? (goals.startWeight - latest.weight)
+    : (latest.weight - goals.startWeight);
+
+  return (achievedDelta / totalDelta) * 100;
+}
+
 function updateProfileTabs() {
   PROFILES.forEach(prof => {
     const btn = document.getElementById(`tab-${prof}`);
@@ -77,6 +217,107 @@ function updateProfileTabs() {
       btn.textContent = prof;
     }
   });
+}
+
+function renderTrophyShelf() {
+  const unlocked = new Set(getUnlockedRewards(currentProfile));
+  const defs = getMilestoneDefinitions(currentProfile);
+  const unlockedCount = defs.filter(d => unlocked.has(d.id)).length;
+
+  document.getElementById("trophy-count").innerText = `${unlockedCount} / ${defs.length}`;
+  const grid = document.getElementById("trophy-grid");
+
+  grid.innerHTML = defs.map(m => {
+    const isUnlocked = unlocked.has(m.id);
+    const clickAttr = isUnlocked ? `onclick="previewReward('${m.id}')"` : "";
+    return `
+      <div class="trophy-item ${isUnlocked ? "unlocked" : ""}" ${clickAttr} title="${m.title}">
+        <div class="trophy-icon">${m.shelfIcon}</div>
+        <div class="trophy-label">${m.shelfLabel}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function previewReward(rewardId) {
+  const def = getMilestoneDefinitions(currentProfile).find(m => m.id === rewardId);
+  if (!def) return;
+  showRewardPopup(def, false);
+}
+
+async function checkAndUnlockMilestones() {
+  const streak = calculateStreak(currentProfile);
+  const pct = calculateProgressPct(currentProfile);
+  const unlocked = getUnlockedRewards(currentProfile);
+  const defs = getMilestoneDefinitions(currentProfile);
+
+  const newlyUnlocked = [];
+
+  for (const m of defs) {
+    if (unlocked.includes(m.id)) continue;
+    const hit = (m.type === "streak" && streak >= m.threshold) ||
+                (m.type === "pct" && pct >= m.threshold);
+    if (hit) {
+      unlocked.push(m.id);
+      newlyUnlocked.push(m);
+    }
+  }
+
+  if (newlyUnlocked.length > 0) {
+    localStorage.setItem(rewardsKey(currentProfile), JSON.stringify(unlocked));
+    renderTrophyShelf();
+
+    // Pop-ups in Warteschlange legen
+    rewardQueue.push(...newlyUnlocked);
+    if (document.getElementById("reward-modal").classList.contains("hidden")) {
+      showNextRewardInQueue();
+    }
+
+    // In Google Sheets speichern
+    for (const m of newlyUnlocked) {
+      await pushToCloud({ action: "unlockReward", rewardId: m.id });
+    }
+  }
+}
+
+function showNextRewardInQueue() {
+  if (rewardQueue.length === 0) return;
+  const next = rewardQueue.shift();
+  showRewardPopup(next, true);
+}
+
+function showRewardPopup(milestone, withConfetti = true) {
+  document.getElementById("modal-icon").innerText = milestone.modalIcon;
+  document.getElementById("modal-tag").innerText = milestone.tag;
+  document.getElementById("modal-title").innerText = milestone.title;
+  document.getElementById("modal-text").innerText = milestone.text;
+  document.getElementById("reward-modal").classList.remove("hidden");
+
+  if (withConfetti) {
+    launchConfetti(currentProfile === "Hannah" ? ["❤️", "😘", "✨", "🎉"] : ["🔥", "🏆", "⭐", "🎉"]);
+  }
+}
+
+function closeRewardModal() {
+  document.getElementById("reward-modal").classList.add("hidden");
+  document.getElementById("confetti-layer").innerHTML = "";
+  if (rewardQueue.length > 0) {
+    setTimeout(showNextRewardInQueue, 250);
+  }
+}
+
+function launchConfetti(symbols) {
+  const layer = document.getElementById("confetti-layer");
+  layer.innerHTML = "";
+  for (let i = 0; i < 28; i++) {
+    const el = document.createElement("div");
+    el.className = "confetti-piece";
+    el.innerText = symbols[i % symbols.length];
+    el.style.left = `${Math.random() * 100}%`;
+    el.style.animationDuration = `${1.8 + Math.random() * 1.6}s`;
+    el.style.animationDelay = `${Math.random() * 0.4}s`;
+    layer.appendChild(el);
+  }
 }
 
 function setZoom(mode) {
@@ -125,6 +366,13 @@ async function fetchProfileData(prof) {
   if (Array.isArray(data.entries)) {
     localStorage.setItem(entriesKey(prof), JSON.stringify(data.entries));
   }
+
+  if (Array.isArray(data.rewards)) {
+    // Cloud- und lokale Belohnungen zusammenführen
+    const localRew = getUnlockedRewards(prof);
+    const merged = Array.from(new Set([...localRew, ...data.rewards]));
+    localStorage.setItem(rewardsKey(prof), JSON.stringify(merged));
+  }
 }
 
 async function syncFromCloud() {
@@ -134,7 +382,6 @@ async function syncFromCloud() {
   }
   setSyncBadge("Synchronisiere...");
   try {
-    // Lädt beide Profile parallel, damit auch beide Streak-Flammen aktuell sind
     await Promise.all(PROFILES.map(p => fetchProfileData(p)));
     updateProfileTabs();
 
@@ -309,6 +556,7 @@ async function addEntry() {
   renderAll();
 
   await pushToCloud({ action: "saveEntry", entry: entryObj });
+  await checkAndUnlockMilestones();
 }
 
 async function deleteEntry(date) {
@@ -341,6 +589,8 @@ function calcTargetAt(dateStr, goals) {
 function renderAll() {
   const goals = getGoals();
   const entries = getEntries();
+
+  renderTrophyShelf();
 
   const histEl = document.getElementById("history-list");
   histEl.innerHTML = [...entries].reverse().map(e => `
@@ -405,14 +655,7 @@ function renderAll() {
   document.getElementById("st-meta").innerHTML = `Soll: <strong>${targetToday.toFixed(2)} kg</strong> · Ø letzte ${last7.length}: <strong>${avg7.toFixed(2)} kg</strong><br>${rateText}`;
 
   // --- FORTSCHRITTSBALKEN BERECHNEN ---
-  const totalDelta = Math.abs(goals.startWeight - goals.goalWeight);
-  let rawPct = 0;
-  if (totalDelta > 0) {
-    const achievedDelta = isLossGoal
-      ? (goals.startWeight - latest.weight)
-      : (latest.weight - goals.startWeight);
-    rawPct = (achievedDelta / totalDelta) * 100;
-  }
+  const rawPct = calculateProgressPct(currentProfile);
   const clampedPct = Math.max(0, Math.min(100, rawPct));
   const remainingKg = Math.max(0, isLossGoal ? (latest.weight - goals.goalWeight) : (goals.goalWeight - latest.weight));
 
