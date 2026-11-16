@@ -24,12 +24,13 @@ const API_URL = "https://script.google.com/macros/s/AKfycbxH15_4xV-60DHh5wK7zAQV
   document.head.appendChild(link);
 })();
 
+const PROFILES = ["Ludwig", "Hannah"];
 let currentProfile = localStorage.getItem("wt_active_profile") || "Ludwig";
 let chartZoom = localStorage.getItem("wt_chart_zoom") || "all";
 let chartInstance = null;
 
-function goalsKey() { return `wt_goals_${currentProfile}`; }
-function entriesKey() { return `wt_entries_${currentProfile}`; }
+function goalsKey(prof = currentProfile) { return `wt_goals_${prof}`; }
+function entriesKey(prof = currentProfile) { return `wt_entries_${prof}`; }
 
 function setSyncBadge(text, isOk = false) {
   const el = document.getElementById("sync-status");
@@ -38,9 +39,44 @@ function setSyncBadge(text, isOk = false) {
   el.className = isOk ? "sync-badge sync-ok" : "sync-badge";
 }
 
+// Berechnet die lückenlose Tage-Streak (aktiv ab heute oder gestern)
+function calculateStreak(prof) {
+  const entries = getEntries(prof);
+  if (entries.length === 0) return 0;
+
+  const dateSet = new Set(entries.map(e => e.date));
+  const today = todayISO();
+  const yesterday = addDaysISO(today, -1);
+
+  let checkDate = null;
+  if (dateSet.has(today)) {
+    checkDate = today;
+  } else if (dateSet.has(yesterday)) {
+    checkDate = yesterday;
+  } else {
+    return 0;
+  }
+
+  let streak = 0;
+  while (dateSet.has(checkDate)) {
+    streak++;
+    checkDate = addDaysISO(checkDate, -1);
+  }
+  return streak;
+}
+
 function updateProfileTabs() {
-  document.getElementById("tab-Ludwig").classList.toggle("active", currentProfile === "Ludwig");
-  document.getElementById("tab-Hannah").classList.toggle("active", currentProfile === "Hannah");
+  PROFILES.forEach(prof => {
+    const btn = document.getElementById(`tab-${prof}`);
+    if (!btn) return;
+    btn.classList.toggle("active", currentProfile === prof);
+    const streak = calculateStreak(prof);
+    if (streak >= 5) {
+      btn.innerHTML = `${prof} <span class="streak-pill">🔥 ${streak}</span>`;
+    } else {
+      btn.textContent = prof;
+    }
+  });
 }
 
 function setZoom(mode) {
@@ -75,31 +111,34 @@ async function switchProfile(profile) {
   await syncFromCloud();
 }
 
+async function fetchProfileData(prof) {
+  const url = `${API_URL}?profile=${encodeURIComponent(prof)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+
+  if (data.goals) {
+    localStorage.setItem(goalsKey(prof), JSON.stringify(data.goals));
+  } else {
+    localStorage.removeItem(goalsKey(prof));
+  }
+
+  if (Array.isArray(data.entries)) {
+    localStorage.setItem(entriesKey(prof), JSON.stringify(data.entries));
+  }
+}
+
 async function syncFromCloud() {
   if (!API_URL.startsWith("http")) {
     setSyncBadge("Nur lokal (API_URL fehlt)");
     return;
   }
-  const targetProfile = currentProfile;
-  setSyncBadge(`Lade ${targetProfile} aus Cloud...`);
+  setSyncBadge("Synchronisiere...");
   try {
-    const url = `${API_URL}?profile=${encodeURIComponent(targetProfile)}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    
-    if (targetProfile !== currentProfile) return;
+    // Lädt beide Profile parallel, damit auch beide Streak-Flammen aktuell sind
+    await Promise.all(PROFILES.map(p => fetchProfileData(p)));
+    updateProfileTabs();
 
-    if (data.goals) {
-      localStorage.setItem(goalsKey(), JSON.stringify(data.goals));
-    } else {
-      localStorage.removeItem(goalsKey());
-    }
-
-    if (Array.isArray(data.entries)) {
-      localStorage.setItem(entriesKey(), JSON.stringify(data.entries));
-    }
-
-    setSyncBadge(`✓ ${targetProfile} synchronisiert`, true);
+    setSyncBadge(`✓ Synchronisiert`, true);
     if (getGoals()) {
       showApp(false);
     } else {
@@ -167,13 +206,13 @@ window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () 
   if (getGoals()) renderAll();
 });
 
-function getGoals() {
-  const raw = localStorage.getItem(goalsKey());
+function getGoals(prof = currentProfile) {
+  const raw = localStorage.getItem(goalsKey(prof));
   return raw ? JSON.parse(raw) : null;
 }
 
-function getEntries() {
-  const raw = localStorage.getItem(entriesKey());
+function getEntries(prof = currentProfile) {
+  const raw = localStorage.getItem(entriesKey(prof));
   const list = raw ? JSON.parse(raw) : [];
   return list.sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -227,6 +266,7 @@ async function saveSetup() {
     localStorage.setItem(entriesKey(), JSON.stringify(entries));
     await pushToCloud({ action: "saveEntry", entry: firstEntry });
   }
+  updateProfileTabs();
   showApp(false);
 }
 
@@ -264,6 +304,8 @@ async function addEntry() {
   entries.push(entryObj);
   localStorage.setItem(entriesKey(), JSON.stringify(entries));
   document.getElementById("entry-weight").value = weight.toFixed(1);
+  
+  updateProfileTabs();
   renderAll();
 
   await pushToCloud({ action: "saveEntry", entry: entryObj });
@@ -273,6 +315,8 @@ async function deleteEntry(date) {
   if (!confirm(`Messung vom ${formatDE(date)} (${currentProfile}) löschen?`)) return;
   const entries = getEntries().filter(e => e.date !== date);
   localStorage.setItem(entriesKey(), JSON.stringify(entries));
+  
+  updateProfileTabs();
   renderAll();
 
   await pushToCloud({ action: "deleteEntry", date });
@@ -359,6 +403,22 @@ function renderAll() {
   const label = onTrack ? (isLossGoal ? "leichter als Soll" : "im Plan") : (isLossGoal ? "schwerer als Soll" : "unter Soll");
   document.getElementById("st-diff").innerText = `${sign}${diff.toFixed(2)} kg (${label})`;
   document.getElementById("st-meta").innerHTML = `Soll: <strong>${targetToday.toFixed(2)} kg</strong> · Ø letzte ${last7.length}: <strong>${avg7.toFixed(2)} kg</strong><br>${rateText}`;
+
+  // --- FORTSCHRITTSBALKEN BERECHNEN ---
+  const totalDelta = Math.abs(goals.startWeight - goals.goalWeight);
+  let rawPct = 0;
+  if (totalDelta > 0) {
+    const achievedDelta = isLossGoal
+      ? (goals.startWeight - latest.weight)
+      : (latest.weight - goals.startWeight);
+    rawPct = (achievedDelta / totalDelta) * 100;
+  }
+  const clampedPct = Math.max(0, Math.min(100, rawPct));
+  const remainingKg = Math.max(0, isLossGoal ? (latest.weight - goals.goalWeight) : (goals.goalWeight - latest.weight));
+
+  document.getElementById("prog-pct").innerText = `${Math.round(rawPct)} % geschafft`;
+  document.getElementById("prog-rem").innerText = remainingKg === 0 ? "Ziel erreicht! 🎉" : `noch ${remainingKg.toFixed(1)} kg`;
+  document.getElementById("prog-fill").style.width = `${clampedPct}%`;
 
   // --- CHART DATEN & ZOOM ---
   const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
