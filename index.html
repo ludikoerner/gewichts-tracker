@@ -7,19 +7,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Gewichts-Tracker</title>
-  <link rel="stylesheet" href="style.css?v=3" />
+  <link rel="stylesheet" href="style.css?v=4" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 </head>
 <body>
 
+  <!-- ENTSCHLACKTER HEADER -->
   <header>
-    <div>
-      <h1>Gewichts-Tracker</h1>
-      <div class="sub" id="goal-subtitle">Profil wählen oder starten</div>
-      <div class="sync-badge" id="sync-status">Bereit</div>
-    </div>
-    <button class="btn-ghost" id="btn-edit-goals" onclick="openSetup()">Ziele ändern</button>
+    <h1>Gewichts-Tracker</h1>
+    <div class="sync-badge" id="sync-status">Bereit</div>
   </header>
 
   <!-- PROFIL-UMSCHALTER INKL. STREAK-BADGES -->
@@ -31,7 +28,10 @@
   <!-- SETUP ANSICHT -->
   <div id="setup-view" class="hidden">
     <div class="card">
-      <div style="font-weight:700; margin-bottom:12px;" id="setup-heading">Ziel-Setup für Ludwig</div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <strong style="font-size:1rem;" id="setup-heading">Ziele festlegen</strong>
+        <button class="btn-ghost hidden" id="btn-cancel-setup" onclick="cancelSetup()">Abbrechen</button>
+      </div>
       <div class="grid-2">
         <div>
           <label>Startdatum</label>
@@ -50,7 +50,7 @@
           <input type="number" step="0.1" inputmode="decimal" id="setup-goal-weight" placeholder="78.0" />
         </div>
       </div>
-      <button class="action-btn btn-primary" onclick="saveSetup()">Ziele speichern & starten</button>
+      <button class="action-btn btn-primary" onclick="saveSetup()">Ziele speichern</button>
     </div>
   </div>
 
@@ -71,10 +71,10 @@
           </div>
         </div>
       </div>
-      <button class="action-btn btn-primary" onclick="addEntry()">Speichern & Synchronisieren</button>
+      <button class="action-btn btn-primary" onclick="addEntry()">Speichern</button>
     </div>
 
-    <!-- STATUS BOX INKL. FORTSCHRITTSBALKEN -->
+    <!-- STATUS BOX INKL. FORTSCHRITTSBALKEN & ZIEL-FUSSZEILE -->
     <div id="status-box" class="status-box status-good">
       <div class="status-title" id="st-title">Status</div>
       <div class="status-main" id="st-diff">--</div>
@@ -87,6 +87,10 @@
         </div>
         <div class="progress-track">
           <div class="progress-fill" id="prog-fill" style="width: 0%;"></div>
+        </div>
+        <div class="goal-footer">
+          <span id="goal-summary">Ziel: --</span>
+          <button type="button" class="goal-edit-btn" onclick="openSetup()">⚙️ Ändern</button>
         </div>
       </div>
     </div>
@@ -103,16 +107,15 @@
       <canvas id="weightChart"></canvas>
     </div>
 
-    <!-- LETZTE MESSUNGEN -->
+    <!-- LETZTE MESSUNGEN (OHNE CSV-BUTTON) -->
     <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <div style="margin-bottom:8px;">
         <strong style="font-size:0.95rem;" id="hist-heading">Letzte Messungen</strong>
-        <button class="btn-ghost" onclick="exportCSV()">CSV-Backup</button>
       </div>
       <div class="hist-list" id="history-list"></div>
     </div>
 
-    <!-- TROPHÄEN-REGAL (GANZ UNTEN) -->
+    <!-- TROPHÄEN-REGAL -->
     <div class="card">
       <div class="trophy-header">
         <strong style="font-size:0.95rem;">Trophäen-Regal</strong>
@@ -135,6 +138,6 @@
   </div>
 
   <script src="config.js"></script>
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
