@@ -25,6 +25,7 @@ const PROFILES = ["Ludwig", "Hannah"];
 let currentTab = localStorage.getItem("wt_active_profile") || "Ludwig";
 let chartZoom = localStorage.getItem("wt_chart_zoom") || "all";
 let chartInstance = null;
+let teamChartInstance = null;
 let rewardQueue = [];
 
 function goalsKey(prof = currentTab) { return `wt_goals_${prof}`; }
@@ -182,29 +183,63 @@ function calculateStreak(prof) {
   return streak;
 }
 
-function calculateProgressPct(prof) {
-  const goals = getGoals(prof);
-  const entries = getEntries(prof);
-  if (!goals || entries.length === 0) return 0;
+// Gemeinsamer Team-Streak: Tage in Folge, an denen BEIDE gewogen haben
+function calculateTeamStreak() {
+  const entriesL = getEntries("Ludwig");
+  const entriesH = getEntries("Hannah");
+  if (entriesL.length === 0 || entriesH.length === 0) return 0;
 
-  const latest = entries[entries.length - 1];
+  const setL = new Set(entriesL.map(e => e.date));
+  const setH = new Set(entriesH.map(e => e.date));
+  const bothDates = new Set([...setL].filter(d => setH.has(d)));
+
+  const today = todayISO();
+  const yesterday = addDaysISO(today, -1);
+
+  let checkDate = null;
+  if (bothDates.has(today)) {
+    checkDate = today;
+  } else if (bothDates.has(yesterday)) {
+    checkDate = yesterday;
+  } else {
+    return 0;
+  }
+
+  let streak = 0;
+  while (bothDates.has(checkDate)) {
+    streak++;
+    checkDate = addDaysISO(checkDate, -1);
+  }
+  return streak;
+}
+
+function calculateProgressPctForWeight(weight, goals) {
+  if (!goals) return 0;
   const isLossGoal = goals.goalWeight <= goals.startWeight;
   const totalDelta = Math.abs(goals.startWeight - goals.goalWeight);
   if (totalDelta <= 0) return 0;
 
   const achievedDelta = isLossGoal
-    ? (goals.startWeight - latest.weight)
-    : (latest.weight - goals.startWeight);
+    ? (goals.startWeight - weight)
+    : (weight - goals.startWeight);
 
   return (achievedDelta / totalDelta) * 100;
+}
+
+function calculateProgressPct(prof) {
+  const goals = getGoals(prof);
+  const entries = getEntries(prof);
+  if (!goals || entries.length === 0) return 0;
+  const latest = entries[entries.length - 1];
+  return calculateProgressPctForWeight(latest.weight, goals);
 }
 
 // Berechnet Durchschnitt der letzten 7 Kalendertage (Tag 0..-6) vs. davor (Tag -7..-13)
 function calculate7DayComparison(prof) {
   const entries = getEntries(prof);
   const today = todayISO();
-  const startCurr = addDaysISO(today, -6);   // inkl. heute = 7 Tage
-  const startPrev = addDaysISO(today, -13);  // Tag -13 bis -7 = 7 Tage davor
+  const startCurr = addDaysISO(today, -6);
+  const startPrev = addDaysISO(today, -13);
 
   const currEntries = entries.filter(e => e.date >= startCurr && e.date <= today);
   const prevEntries = entries.filter(e => e.date >= startPrev && e.date < startCurr);
@@ -470,7 +505,11 @@ document.addEventListener("visibilitychange", () => {
 });
 
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-  if (currentTab !== "Gemeinsam" && getGoals()) renderAll();
+  if (currentTab === "Gemeinsam") {
+    renderTeamChart();
+  } else if (getGoals()) {
+    renderAll();
+  }
 });
 
 function getGoals(prof = currentTab) {
@@ -564,7 +603,7 @@ function showApp(triggerSync = true) {
   if (triggerSync) syncFromCloud();
 }
 
-// --- TEAM-ANSICHT RENDERN ---
+// --- TEAM-ANSICHT & GEMEINSAMER GRAPH ---
 function showTeamView() {
   document.getElementById("setup-view").classList.add("hidden");
   document.getElementById("app-view").classList.add("hidden");
@@ -635,7 +674,128 @@ function showTeamView() {
   const teamPct = activeCount > 0 ? (sumPct / activeCount) : 0;
   document.getElementById("team-total-pct").innerText = `${Math.round(teamPct)} %`;
   document.getElementById("team-total-fill").style.width = `${Math.max(0, Math.min(100, teamPct))}%`;
+
+  const teamStreak = calculateTeamStreak();
+  document.getElementById("team-streak-val").innerText = `🤝 ${teamStreak} ${teamStreak === 1 ? "Tag" : "Tage"}`;
+  document.getElementById("team-streak-sub").innerText = teamStreak > 0
+    ? "Gemeinsam in Folge gewogen"
+    : "Wiegt euch beide heute!";
+
   document.getElementById("team-cards-container").innerHTML = cardsHtml;
+
+  renderTeamChart();
+}
+
+function renderTeamChart() {
+  const ctx = document.getElementById("teamChart");
+  if (!ctx) return;
+
+  const activeProfiles = PROFILES.filter(p => getGoals(p) && getEntries(p).length > 0);
+  if (activeProfiles.length === 0) {
+    if (teamChartInstance) teamChartInstance.destroy();
+    return;
+  }
+
+  // Alle eindeutigen Datumspunkte sammeln
+  const allDatesSet = new Set();
+  const profileData = activeProfiles.map(prof => {
+    const goals = getGoals(prof);
+    const entries = getEntries(prof);
+    entries.forEach(e => allDatesSet.add(e.date));
+    return { prof, goals, entries };
+  });
+
+  const sortedDates = Array.from(allDatesSet).sort();
+
+  // Für jeden Tag den kombinierten Team-Prozentwert (0 - 100 %) berechnen
+  const teamSeries = sortedDates.map(date => {
+    let sumPct = 0;
+    let count = 0;
+    for (const p of profileData) {
+      // Letzten Eintrag bis einschließlich diesem Datum suchen
+      let lastEntry = null;
+      for (const e of p.entries) {
+        if (e.date <= date) lastEntry = e;
+        else break;
+      }
+      const w = lastEntry ? lastEntry.weight : p.goals.startWeight;
+      const pct = Math.max(0, Math.min(100, calculateProgressPctForWeight(w, p.goals)));
+      sumPct += pct;
+      count++;
+    }
+    return { x: date, y: Math.round((sumPct / count) * 10) / 10 };
+  });
+
+  // Gemeinsamer Soll-Korridor (frühestes Startdatum -> spätestes Enddatum)
+  const minStart = profileData.reduce((min, p) => p.goals.startDate < min ? p.goals.startDate : min, profileData[0].goals.startDate);
+  const maxEnd = profileData.reduce((max, p) => p.goals.endDate > max ? p.goals.endDate : max, profileData[0].goals.endDate);
+
+  const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const gridColor = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)";
+  const tickColor = isDark ? "#94a3b8" : "#64748b";
+
+  if (teamChartInstance) teamChartInstance.destroy();
+  teamChartInstance = new Chart(ctx.getContext("2d"), {
+    type: "line",
+    data: {
+      datasets: [
+        {
+          label: "Soll-Kurs",
+          data: [{ x: minStart, y: 0 }, { x: maxEnd, y: 100 }],
+          borderColor: "#94a3b8",
+          borderDash: [6, 6],
+          borderWidth: 2,
+          pointRadius: 0
+        },
+        {
+          label: "Team-Fortschritt (%)",
+          data: teamSeries,
+          borderColor: "#8b5cf6",
+          backgroundColor: "rgba(139, 92, 246, 0.14)",
+          fill: true,
+          borderWidth: 2.8,
+          pointRadius: 3,
+          pointBackgroundColor: "#8b5cf6"
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "top", labels: { boxWidth: 12, font: { size: 11 }, color: tickColor } },
+        tooltip: {
+          callbacks: {
+            title: (items) => formatDE(items[0].raw.x),
+            label: (item) => `${item.dataset.label}: ${item.raw.y.toFixed(1)} %`
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: "time",
+          time: { unit: "day", tooltipFormat: "dd.MM.yyyy" },
+          grid: { color: gridColor },
+          ticks: {
+            maxTicksLimit: 6,
+            font: { size: 10 },
+            color: tickColor,
+            callback: (val) => new Date(val).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })
+          }
+        },
+        y: {
+          min: 0,
+          max: 100,
+          grid: { color: gridColor },
+          ticks: {
+            font: { size: 10 },
+            color: tickColor,
+            callback: (val) => `${val} %`
+          }
+        }
+      }
+    }
+  });
 }
 
 async function addEntry() {
