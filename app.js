@@ -35,7 +35,6 @@ function rewardsKey(prof = currentProfile) { return `wt_rewards_${prof}`; }
 function getMilestoneDefinitions(prof) {
   const isHannah = prof === "Hannah";
   return [
-    // Streaks
     {
       id: "streak_5",
       type: "streak",
@@ -91,8 +90,6 @@ function getMilestoneDefinitions(prof) {
       title: "100 Tage Legende!",
       text: "Dreistellig! 100 Tage durchgezogen – das macht euch so schnell keiner nach."
     },
-
-    // Ziel-Fortschritt (persönlich für Hannah vs. sportlich für Ludwig)
     {
       id: "pct_10",
       type: "pct",
@@ -264,13 +261,11 @@ async function checkAndUnlockMilestones() {
     localStorage.setItem(rewardsKey(currentProfile), JSON.stringify(unlocked));
     renderTrophyShelf();
 
-    // Pop-ups in Warteschlange legen
     rewardQueue.push(...newlyUnlocked);
     if (document.getElementById("reward-modal").classList.contains("hidden")) {
       showNextRewardInQueue();
     }
 
-    // In Google Sheets speichern
     for (const m of newlyUnlocked) {
       await pushToCloud({ action: "unlockReward", rewardId: m.id });
     }
@@ -365,7 +360,6 @@ async function fetchProfileData(prof) {
   }
 
   if (Array.isArray(data.rewards)) {
-    // Cloud- und lokale Belohnungen zusammenführen
     const localRew = getUnlockedRewards(prof);
     const merged = Array.from(new Set([...localRew, ...data.rewards]));
     localStorage.setItem(rewardsKey(prof), JSON.stringify(merged));
@@ -373,30 +367,30 @@ async function fetchProfileData(prof) {
 }
 
 async function syncFromCloud() {
-  if (!API_URL.startsWith("http")) {
-    setSyncBadge("Nur lokal (API_URL fehlt)");
+  if (typeof API_URL === "undefined" || !API_URL.startsWith("http")) {
+    setSyncBadge("Lokal");
     return;
   }
-  setSyncBadge("Synchronisiere...");
+  setSyncBadge("Sync...");
   try {
     await Promise.all(PROFILES.map(p => fetchProfileData(p)));
     updateProfileTabs();
 
-    setSyncBadge(`✓ Synchronisiert`, true);
+    setSyncBadge("✓ Cloud", true);
     if (getGoals()) {
       showApp(false);
     } else {
       openSetup();
     }
   } catch (err) {
-    setSyncBadge("Offline-Modus (lokale Daten)");
+    setSyncBadge("Offline");
   }
 }
 
 async function pushToCloud(payload) {
-  if (!API_URL.startsWith("http")) return;
+  if (typeof API_URL === "undefined" || !API_URL.startsWith("http")) return;
   payload.profile = currentProfile;
-  setSyncBadge(`Speichere (${currentProfile})...`);
+  setSyncBadge("Speichere...");
   try {
     await fetch(API_URL, {
       method: "POST",
@@ -404,9 +398,9 @@ async function pushToCloud(payload) {
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify(payload)
     });
-    setSyncBadge(`✓ ${currentProfile} gespeichert`, true);
+    setSyncBadge("✓ Cloud", true);
   } catch (err) {
-    setSyncBadge("Fehler beim Cloud-Sync");
+    setSyncBadge("Sync-Fehler");
   }
 }
 
@@ -477,15 +471,20 @@ async function init() {
 function openSetup() {
   document.getElementById("setup-view").classList.remove("hidden");
   document.getElementById("app-view").classList.add("hidden");
-  document.getElementById("btn-edit-goals").classList.add("hidden");
-  document.getElementById("goal-subtitle").innerText = `Setup für ${currentProfile}`;
   document.getElementById("setup-heading").innerText = `Ziele festlegen (${currentProfile})`;
 
   const goals = getGoals();
+  document.getElementById("btn-cancel-setup").classList.toggle("hidden", !goals);
   document.getElementById("setup-start-date").value = goals ? goals.startDate : todayISO();
   document.getElementById("setup-end-date").value = goals ? goals.endDate : "2026-12-31";
   document.getElementById("setup-start-weight").value = goals ? goals.startWeight : "";
   document.getElementById("setup-goal-weight").value = goals ? goals.goalWeight : "";
+}
+
+function cancelSetup() {
+  if (getGoals()) {
+    showApp(false);
+  }
 }
 
 async function saveSetup() {
@@ -517,11 +516,10 @@ async function saveSetup() {
 function showApp(triggerSync = true) {
   document.getElementById("setup-view").classList.add("hidden");
   document.getElementById("app-view").classList.remove("hidden");
-  document.getElementById("btn-edit-goals").classList.remove("hidden");
   document.getElementById("entry-date").value = todayISO();
   
   const goals = getGoals();
-  document.getElementById("goal-subtitle").innerText = `Ziel (${currentProfile}): ${goals.goalWeight.toFixed(1)} kg bis ${formatDE(goals.endDate)}`;
+  document.getElementById("goal-summary").innerText = `Ziel: ${goals.goalWeight.toFixed(1)} kg bis ${formatDE(goals.endDate)}`;
   document.getElementById("hist-heading").innerText = `Letzte Messungen (${currentProfile})`;
 
   const entries = getEntries();
@@ -588,6 +586,9 @@ function renderAll() {
   const entries = getEntries();
 
   renderTrophyShelf();
+  if (goals) {
+    document.getElementById("goal-summary").innerText = `Ziel: ${goals.goalWeight.toFixed(1)} kg bis ${formatDE(goals.endDate)}`;
+  }
 
   const histEl = document.getElementById("history-list");
   histEl.innerHTML = [...entries].reverse().map(e => `
@@ -731,16 +732,6 @@ function renderAll() {
       }
     }
   });
-}
-
-function exportCSV() {
-  const entries = getEntries();
-  let csv = "Datum;Gewicht\n" + entries.map(e => `${formatDE(e.date)};${e.weight}`).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `gewichts_backup_${currentProfile}.csv`;
-  a.click();
 }
 
 init();
