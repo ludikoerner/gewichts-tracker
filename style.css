@@ -125,11 +125,12 @@ button.action-btn { border: none; border-radius: 10px; padding: 12px; font-size:
 .progress-fill { height: 100%; border-radius: 99px; background: var(--primary); transition: width 0.4s ease; }
 .progress-fill.good { background: #16a34a; }
 .progress-fill.bad { background: #dc2626; }
-.progress-fill.team-fill { background: linear-gradient(90deg, #2563eb, #ec4899); }
+.progress-fill.team-fill { background: linear-gradient(90deg, #2563eb, #8b5cf6, #ec4899); }
 
 /* Team-Ansicht */
-.team-hero { text-align: center; padding: 20px 16px; }
-.team-pct-big { font-size: 2.2rem; font-weight: 900; color: var(--primary); line-height: 1.1; margin: 4px 0; }
+.team-stat-card { padding: 14px; }
+.team-pct-big { font-size: 1.65rem; font-weight: 900; color: var(--primary); line-height: 1.15; margin: 4px 0 2px 0; }
+.team-streak-big { font-size: 1.35rem; font-weight: 800; color: var(--text); line-height: 1.2; margin: 6px 0 4px 0; }
 .partner-card { cursor: pointer; transition: transform 0.15s; }
 .partner-card:active { transform: scale(0.99); }
 .partner-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
