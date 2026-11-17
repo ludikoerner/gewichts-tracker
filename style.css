@@ -58,11 +58,11 @@ h1 { font-size: 1.35rem; margin: 0; }
 .sync-badge { font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 99px; background: var(--switch-bg); color: var(--muted); }
 .sync-ok { background: var(--good-bg); color: var(--good-text); }
 
-/* Profil Umschalter & Streak Badge */
-.profile-switch { display: grid; grid-template-columns: 1fr 1fr; background: var(--switch-bg); padding: 4px; border-radius: 12px; margin-bottom: 14px; }
-.profile-btn { padding: 8px; border-radius: 9px; font-size: 0.9rem; font-weight: 700; color: var(--switch-text); background: transparent; border: none; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+/* 3-Tab Umschalter */
+.profile-switch { display: grid; grid-template-columns: 1fr 1fr 1fr; background: var(--switch-bg); padding: 4px; border-radius: 12px; margin-bottom: 14px; gap: 4px; }
+.profile-btn { padding: 8px 4px; border-radius: 9px; font-size: 0.86rem; font-weight: 700; color: var(--switch-text); background: transparent; border: none; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 4px; }
 .profile-btn.active { background: var(--card); color: var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.12); }
-.streak-pill { font-size: 0.78rem; font-weight: 800; padding: 2px 7px; border-radius: 99px; background: rgba(249, 115, 22, 0.15); color: #ea580c; }
+.streak-pill { font-size: 0.72rem; font-weight: 800; padding: 1px 6px; border-radius: 99px; background: rgba(249, 115, 22, 0.15); color: #ea580c; }
 
 .card { background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -82,47 +82,68 @@ button.action-btn { border: none; border-radius: 10px; padding: 12px; font-size:
 .btn-ghost { background: transparent; color: var(--muted); font-size: 0.8rem; padding: 4px 6px; text-decoration: underline; border: none; cursor: pointer; }
 .btn-danger { background: var(--danger-bg); color: var(--danger-text); padding: 6px 10px; font-size: 0.8rem; border-radius: 8px; border: none; cursor: pointer; }
 
+/* 2x2 Statistik-Kacheln */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.stat-tile {
+  background: var(--card);
+  border-radius: 14px;
+  padding: 13px 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border: 1.5px solid transparent;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.stat-tile.status-good { background: var(--good-bg); border-color: var(--good-border); color: var(--good-text); }
+.stat-tile.status-bad { background: var(--bad-bg); border-color: var(--bad-border); color: var(--bad-text); }
+
+.tile-header-row { display: flex; justify-content: space-between; align-items: center; }
+.tile-label { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); }
+.stat-tile.status-good .tile-label,
+.stat-tile.status-bad .tile-label { color: var(--text); opacity: 0.75; }
+
+.tile-main { font-size: 1.15rem; font-weight: 800; margin: 5px 0 3px 0; line-height: 1.2; }
+.tile-sub { font-size: 0.77rem; color: var(--muted); line-height: 1.3; }
+.stat-tile.status-good .tile-sub,
+.stat-tile.status-bad .tile-sub { color: var(--text); opacity: 0.85; }
+
+.icon-edit-btn {
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.icon-edit-btn:active { opacity: 0.7; }
+
+/* Fortschritts-Karte */
+.progress-card { padding: 13px 16px; }
+.progress-labels { display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.progress-track { width: 100%; height: 10px; background: var(--track-bg); border-radius: 99px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 99px; background: var(--primary); transition: width 0.4s ease; }
+.progress-fill.good { background: #16a34a; }
+.progress-fill.bad { background: #dc2626; }
+.progress-fill.team-fill { background: linear-gradient(90deg, #2563eb, #ec4899); }
+
+/* Team-Ansicht */
+.team-hero { text-align: center; padding: 20px 16px; }
+.team-pct-big { font-size: 2.2rem; font-weight: 900; color: var(--primary); line-height: 1.1; margin: 4px 0; }
+.partner-card { cursor: pointer; transition: transform 0.15s; }
+.partner-card:active { transform: scale(0.99); }
+.partner-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.partner-name { font-size: 1.05rem; font-weight: 800; display: flex; align-items: center; gap: 6px; }
+.today-badge { font-size: 0.74rem; font-weight: 700; padding: 3px 8px; border-radius: 99px; }
+.today-done { background: var(--good-bg); color: var(--good-text); }
+.today-open { background: var(--switch-bg); color: var(--muted); }
+.partner-stats { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--muted); margin-top: 8px; }
+
 /* Zoom Umschalter */
 .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .zoom-switch { display: inline-flex; background: var(--switch-bg); padding: 3px; border-radius: 8px; }
 .zoom-btn { padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; color: var(--switch-text); background: transparent; border: none; cursor: pointer; }
 .zoom-btn.active { background: var(--card); color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
-
-/* Status Box, Fortschrittsbalken & Ziel-Fußzeile */
-.status-box { border-radius: 12px; padding: 14px; margin-bottom: 14px; border: 1.5px solid; }
-.status-good { background: var(--good-bg); border-color: var(--good-border); color: var(--good-text); }
-.status-bad { background: var(--bad-bg); border-color: var(--bad-border); color: var(--bad-text); }
-.status-title { font-size: 0.85rem; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-.status-main { font-size: 1.1rem; font-weight: 800; margin-bottom: 6px; }
-.status-meta { font-size: 0.85rem; color: var(--text); opacity: 0.9; line-height: 1.45; }
-
-.progress-wrapper { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--track-bg); }
-.progress-labels { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 700; color: var(--text); margin-bottom: 5px; }
-.progress-track { width: 100%; height: 10px; background: var(--track-bg); border-radius: 99px; overflow: hidden; }
-.progress-fill { height: 100%; border-radius: 99px; transition: width 0.4s ease; }
-.status-good .progress-fill { background: #16a34a; }
-.status-bad .progress-fill { background: #dc2626; }
-
-.goal-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 9px;
-  font-size: 0.78rem;
-  color: var(--text);
-  opacity: 0.85;
-}
-.goal-edit-btn {
-  background: var(--track-bg);
-  color: var(--text);
-  border: none;
-  border-radius: 6px;
-  padding: 3px 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.goal-edit-btn:active { opacity: 0.7; }
 
 /* Trophäen-Regal */
 .trophy-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
