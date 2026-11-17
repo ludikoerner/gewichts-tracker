@@ -22,14 +22,14 @@
 })();
 
 const PROFILES = ["Ludwig", "Hannah"];
-let currentProfile = localStorage.getItem("wt_active_profile") || "Ludwig";
+let currentTab = localStorage.getItem("wt_active_profile") || "Ludwig";
 let chartZoom = localStorage.getItem("wt_chart_zoom") || "all";
 let chartInstance = null;
 let rewardQueue = [];
 
-function goalsKey(prof = currentProfile) { return `wt_goals_${prof}`; }
-function entriesKey(prof = currentProfile) { return `wt_entries_${prof}`; }
-function rewardsKey(prof = currentProfile) { return `wt_rewards_${prof}`; }
+function goalsKey(prof = currentTab) { return `wt_goals_${prof}`; }
+function entriesKey(prof = currentTab) { return `wt_entries_${prof}`; }
+function rewardsKey(prof = currentTab) { return `wt_rewards_${prof}`; }
 
 // --- MEILENSTEIN-DEFINITIONEN ---
 function getMilestoneDefinitions(prof) {
@@ -145,7 +145,7 @@ function getMilestoneDefinitions(prof) {
   ];
 }
 
-function getUnlockedRewards(prof = currentProfile) {
+function getUnlockedRewards(prof = currentTab) {
   const raw = localStorage.getItem(rewardsKey(prof));
   return raw ? JSON.parse(raw) : [];
 }
@@ -199,11 +199,31 @@ function calculateProgressPct(prof) {
   return (achievedDelta / totalDelta) * 100;
 }
 
+// Berechnet Durchschnitt der letzten 7 Kalendertage (Tag 0..-6) vs. davor (Tag -7..-13)
+function calculate7DayComparison(prof) {
+  const entries = getEntries(prof);
+  const today = todayISO();
+  const startCurr = addDaysISO(today, -6);   // inkl. heute = 7 Tage
+  const startPrev = addDaysISO(today, -13);  // Tag -13 bis -7 = 7 Tage davor
+
+  const currEntries = entries.filter(e => e.date >= startCurr && e.date <= today);
+  const prevEntries = entries.filter(e => e.date >= startPrev && e.date < startCurr);
+
+  const avgCurr = currEntries.length > 0
+    ? currEntries.reduce((s, e) => s + e.weight, 0) / currEntries.length
+    : null;
+  const avgPrev = prevEntries.length > 0
+    ? prevEntries.reduce((s, e) => s + e.weight, 0) / prevEntries.length
+    : null;
+
+  return { avgCurr, avgPrev, countCurr: currEntries.length, countPrev: prevEntries.length };
+}
+
 function updateProfileTabs() {
   PROFILES.forEach(prof => {
     const btn = document.getElementById(`tab-${prof}`);
     if (!btn) return;
-    btn.classList.toggle("active", currentProfile === prof);
+    btn.classList.toggle("active", currentTab === prof);
     const streak = calculateStreak(prof);
     if (streak >= 5) {
       btn.innerHTML = `${prof} <span class="streak-pill">🔥 ${streak}</span>`;
@@ -211,11 +231,15 @@ function updateProfileTabs() {
       btn.textContent = prof;
     }
   });
+  const teamBtn = document.getElementById("tab-Gemeinsam");
+  if (teamBtn) {
+    teamBtn.classList.toggle("active", currentTab === "Gemeinsam");
+  }
 }
 
 function renderTrophyShelf() {
-  const unlocked = new Set(getUnlockedRewards(currentProfile));
-  const defs = getMilestoneDefinitions(currentProfile);
+  const unlocked = new Set(getUnlockedRewards(currentTab));
+  const defs = getMilestoneDefinitions(currentTab);
   const unlockedCount = defs.filter(d => unlocked.has(d.id)).length;
 
   document.getElementById("trophy-count").innerText = `${unlockedCount} / ${defs.length}`;
@@ -234,16 +258,17 @@ function renderTrophyShelf() {
 }
 
 function previewReward(rewardId) {
-  const def = getMilestoneDefinitions(currentProfile).find(m => m.id === rewardId);
+  const def = getMilestoneDefinitions(currentTab).find(m => m.id === rewardId);
   if (!def) return;
   showRewardPopup(def, false);
 }
 
 async function checkAndUnlockMilestones() {
-  const streak = calculateStreak(currentProfile);
-  const pct = calculateProgressPct(currentProfile);
-  const unlocked = getUnlockedRewards(currentProfile);
-  const defs = getMilestoneDefinitions(currentProfile);
+  if (!PROFILES.includes(currentTab)) return;
+  const streak = calculateStreak(currentTab);
+  const pct = calculateProgressPct(currentTab);
+  const unlocked = getUnlockedRewards(currentTab);
+  const defs = getMilestoneDefinitions(currentTab);
 
   const newlyUnlocked = [];
 
@@ -258,7 +283,7 @@ async function checkAndUnlockMilestones() {
   }
 
   if (newlyUnlocked.length > 0) {
-    localStorage.setItem(rewardsKey(currentProfile), JSON.stringify(unlocked));
+    localStorage.setItem(rewardsKey(currentTab), JSON.stringify(unlocked));
     renderTrophyShelf();
 
     rewardQueue.push(...newlyUnlocked);
@@ -286,7 +311,7 @@ function showRewardPopup(milestone, withConfetti = true) {
   document.getElementById("reward-modal").classList.remove("hidden");
 
   if (withConfetti) {
-    launchConfetti(currentProfile === "Hannah" ? ["❤️", "😘", "✨", "🎉"] : ["🔥", "🏆", "⭐", "🎉"]);
+    launchConfetti(currentTab === "Hannah" ? ["❤️", "😘", "✨", "🎉"] : ["🔥", "🏆", "⭐", "🎉"]);
   }
 }
 
@@ -331,12 +356,14 @@ function stepWeight(delta) {
   input.value = next.toFixed(1);
 }
 
-async function switchProfile(profile) {
-  currentProfile = profile;
-  localStorage.setItem("wt_active_profile", profile);
+async function switchProfile(tab) {
+  currentTab = tab;
+  localStorage.setItem("wt_active_profile", tab);
   updateProfileTabs();
-  
-  if (getGoals()) {
+
+  if (tab === "Gemeinsam") {
+    showTeamView();
+  } else if (getGoals(tab)) {
     showApp(false);
   } else {
     openSetup();
@@ -375,9 +402,11 @@ async function syncFromCloud() {
   try {
     await Promise.all(PROFILES.map(p => fetchProfileData(p)));
     updateProfileTabs();
-
     setSyncBadge("✓ Cloud", true);
-    if (getGoals()) {
+
+    if (currentTab === "Gemeinsam") {
+      showTeamView();
+    } else if (getGoals(currentTab)) {
       showApp(false);
     } else {
       openSetup();
@@ -389,7 +418,7 @@ async function syncFromCloud() {
 
 async function pushToCloud(payload) {
   if (typeof API_URL === "undefined" || !API_URL.startsWith("http")) return;
-  payload.profile = currentProfile;
+  payload.profile = currentTab;
   setSyncBadge("Speichere...");
   try {
     await fetch(API_URL, {
@@ -441,15 +470,15 @@ document.addEventListener("visibilitychange", () => {
 });
 
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-  if (getGoals()) renderAll();
+  if (currentTab !== "Gemeinsam" && getGoals()) renderAll();
 });
 
-function getGoals(prof = currentProfile) {
+function getGoals(prof = currentTab) {
   const raw = localStorage.getItem(goalsKey(prof));
   return raw ? JSON.parse(raw) : null;
 }
 
-function getEntries(prof = currentProfile) {
+function getEntries(prof = currentTab) {
   const raw = localStorage.getItem(entriesKey(prof));
   const list = raw ? JSON.parse(raw) : [];
   return list.sort((a, b) => a.date.localeCompare(b.date));
@@ -460,7 +489,9 @@ async function init() {
   document.getElementById("zoom-all").classList.toggle("active", chartZoom === "all");
   document.getElementById("zoom-30").classList.toggle("active", chartZoom === "30");
 
-  if (getGoals()) {
+  if (currentTab === "Gemeinsam") {
+    showTeamView();
+  } else if (getGoals(currentTab)) {
     showApp(false);
   } else {
     openSetup();
@@ -471,7 +502,8 @@ async function init() {
 function openSetup() {
   document.getElementById("setup-view").classList.remove("hidden");
   document.getElementById("app-view").classList.add("hidden");
-  document.getElementById("setup-heading").innerText = `Ziele festlegen (${currentProfile})`;
+  document.getElementById("team-view").classList.add("hidden");
+  document.getElementById("setup-heading").innerText = `Ziele festlegen (${currentTab})`;
 
   const goals = getGoals();
   document.getElementById("btn-cancel-setup").classList.toggle("hidden", !goals);
@@ -515,12 +547,11 @@ async function saveSetup() {
 
 function showApp(triggerSync = true) {
   document.getElementById("setup-view").classList.add("hidden");
+  document.getElementById("team-view").classList.add("hidden");
   document.getElementById("app-view").classList.remove("hidden");
   document.getElementById("entry-date").value = todayISO();
-  
-  const goals = getGoals();
-  document.getElementById("goal-summary").innerText = `Ziel: ${goals.goalWeight.toFixed(1)} kg bis ${formatDE(goals.endDate)}`;
-  document.getElementById("hist-heading").innerText = `Letzte Messungen (${currentProfile})`;
+
+  document.getElementById("hist-heading").innerText = `Letzte Messungen (${currentTab})`;
 
   const entries = getEntries();
   if (entries.length > 0) {
@@ -531,6 +562,80 @@ function showApp(triggerSync = true) {
 
   renderAll();
   if (triggerSync) syncFromCloud();
+}
+
+// --- TEAM-ANSICHT RENDERN ---
+function showTeamView() {
+  document.getElementById("setup-view").classList.add("hidden");
+  document.getElementById("app-view").classList.add("hidden");
+  document.getElementById("team-view").classList.remove("hidden");
+
+  const today = todayISO();
+  let sumPct = 0;
+  let activeCount = 0;
+
+  const cardsHtml = PROFILES.map(prof => {
+    const goals = getGoals(prof);
+    const entries = getEntries(prof);
+    const streak = calculateStreak(prof);
+    const rawPct = calculateProgressPct(prof);
+    const clampedPct = Math.max(0, Math.min(100, rawPct));
+
+    if (goals) {
+      sumPct += clampedPct;
+      activeCount++;
+    }
+
+    const weighedToday = entries.some(e => e.date === today);
+    const comp = calculate7DayComparison(prof);
+    const avg7Str = comp.avgCurr !== null ? `${comp.avgCurr.toFixed(1)} kg` : "–";
+
+    let delta7Str = "";
+    if (comp.avgCurr !== null && comp.avgPrev !== null) {
+      const d7 = comp.avgCurr - comp.avgPrev;
+      delta7Str = ` (${d7 > 0 ? "+" : ""}${d7.toFixed(2)} kg vs. Vorwoche)`;
+    }
+
+    const isLossGoal = goals ? goals.goalWeight <= goals.startWeight : true;
+    const latest = entries.length > 0 ? entries[entries.length - 1] : null;
+    const remKg = (goals && latest)
+      ? Math.max(0, isLossGoal ? (latest.weight - goals.goalWeight) : (goals.goalWeight - latest.weight))
+      : null;
+
+    const unlockedCount = getUnlockedRewards(prof).length;
+
+    return `
+      <div class="card partner-card" onclick="switchProfile('${prof}')">
+        <div class="partner-header">
+          <div class="partner-name">
+            <span>${prof}</span>
+            ${streak >= 5 ? `<span class="streak-pill">🔥 ${streak}</span>` : ""}
+          </div>
+          <span class="today-badge ${weighedToday ? "today-done" : "today-open"}">
+            ${weighedToday ? "✅ Heute gewogen" : "⏳ Heute offen"}
+          </span>
+        </div>
+
+        <div class="progress-labels">
+          <span>${goals ? `${Math.round(rawPct)} % geschafft` : "Noch kein Ziel"}</span>
+          <span>${remKg !== null ? (remKg === 0 ? "Ziel erreicht! 🎉" : `noch ${remKg.toFixed(1)} kg`) : ""}</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" style="width: ${clampedPct}%;"></div>
+        </div>
+
+        <div class="partner-stats">
+          <span>Ø 7 Tage: <strong>${avg7Str}</strong>${delta7Str}</span>
+          <span>🏆 ${unlockedCount} / 9</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const teamPct = activeCount > 0 ? (sumPct / activeCount) : 0;
+  document.getElementById("team-total-pct").innerText = `${Math.round(teamPct)} %`;
+  document.getElementById("team-total-fill").style.width = `${Math.max(0, Math.min(100, teamPct))}%`;
+  document.getElementById("team-cards-container").innerHTML = cardsHtml;
 }
 
 async function addEntry() {
@@ -555,7 +660,7 @@ async function addEntry() {
 }
 
 async function deleteEntry(date) {
-  if (!confirm(`Messung vom ${formatDE(date)} (${currentProfile}) löschen?`)) return;
+  if (!confirm(`Messung vom ${formatDE(date)} (${currentTab}) löschen?`)) return;
   const entries = getEntries().filter(e => e.date !== date);
   localStorage.setItem(entriesKey(), JSON.stringify(entries));
   
@@ -586,8 +691,10 @@ function renderAll() {
   const entries = getEntries();
 
   renderTrophyShelf();
+
   if (goals) {
-    document.getElementById("goal-summary").innerText = `Ziel: ${goals.goalWeight.toFixed(1)} kg bis ${formatDE(goals.endDate)}`;
+    document.getElementById("st-goal").innerText = `${goals.goalWeight.toFixed(1)} kg`;
+    document.getElementById("st-goal-date").innerText = `bis ${formatDE(goals.endDate)}`;
   }
 
   const histEl = document.getElementById("history-list");
@@ -611,17 +718,37 @@ function renderAll() {
   const isLossGoal = goals.goalWeight <= goals.startWeight;
   const onTrack = isLossGoal ? diff <= 0 : diff >= 0;
 
-  const last7 = entries.slice(-7);
-  const avg7 = last7.reduce((s, e) => s + e.weight, 0) / last7.length;
+  // --- KACHEL 1: SOLL-ABWEICHUNG ---
+  const tileStatus = document.getElementById("tile-status");
+  tileStatus.className = `stat-tile ${onTrack ? "status-good" : "status-bad"}`;
+  const sign = diff > 0 ? "+" : "";
+  const statusShort = onTrack ? (isLossGoal ? "unter Soll" : "im Plan") : (isLossGoal ? "über Soll" : "unter Soll");
+  document.getElementById("st-diff").innerText = `${sign}${diff.toFixed(2)} kg`;
+  document.getElementById("st-target").innerText = `Soll: ${targetToday.toFixed(2)} kg (${statusShort})`;
 
+  // --- KACHEL 2: LETZTE 7 TAGE VS. DAVORIGE 7 TAGE ---
+  const comp7 = calculate7DayComparison(currentTab);
+  if (comp7.avgCurr !== null) {
+    document.getElementById("st-avg7").innerText = `${comp7.avgCurr.toFixed(2)} kg`;
+    if (comp7.avgPrev !== null) {
+      const diff7 = comp7.avgCurr - comp7.avgPrev;
+      const d7Sign = diff7 > 0 ? "+" : "";
+      document.getElementById("st-avg7-diff").innerText = `${d7Sign}${diff7.toFixed(2)} kg vs. davor (${comp7.avgPrev.toFixed(1)})`;
+    } else {
+      document.getElementById("st-avg7-diff").innerText = `${comp7.countCurr} Messung(en) · keine Vorwoche`;
+    }
+  } else {
+    document.getElementById("st-avg7").innerText = "–";
+    document.getElementById("st-avg7-diff").innerText = "Keine Messung in 7 Tagen";
+  }
+
+  // --- KACHEL 3: WOCHENTEMPO ---
   const trendValues = entries.map((_, i) => {
     const slice = entries.slice(Math.max(0, i - 6), i + 1);
     return slice.reduce((s, e) => s + e.weight, 0) / slice.length;
   });
 
-  let rateText = "Tempo: mind. 2 Messungen nötig";
   let prognosisPoint = null;
-
   if (entries.length >= 2) {
     const winLen = Math.min(7, entries.length);
     const dRef = new Date(entries[entries.length - winLen].date);
@@ -634,32 +761,33 @@ function renderAll() {
       const slopePerDay = (gLast - gRef) / daysDiff;
       const weekRate = slopePerDay * 7;
       const kcalPerDay = Math.round(slopePerDay * 7000);
-      const kcalLabel = kcalPerDay < 0 ? `Ø ${Math.abs(kcalPerDay)} kcal Defizit/Tag` : `Ø +${kcalPerDay} kcal Überschuss/Tag`;
-      rateText = `Tempo: ${weekRate >= 0 ? "+" : ""}${weekRate.toFixed(2)} kg/Woche · ${kcalLabel}`;
+      const kcalLabel = kcalPerDay < 0
+        ? `Ø ${Math.abs(kcalPerDay)} kcal Defizit/Tag`
+        : `Ø +${kcalPerDay} kcal Überschuss/Tag`;
+
+      document.getElementById("st-rate").innerText = `${weekRate >= 0 ? "+" : ""}${weekRate.toFixed(2)} kg / Wo`;
+      document.getElementById("st-kcal").innerText = kcalLabel;
 
       const remDays = (new Date(goals.endDate) - dLast) / 86400000;
       if (remDays > 0) {
         prognosisPoint = { date: goals.endDate, weight: gLast + slopePerDay * remDays };
       }
     }
+  } else {
+    document.getElementById("st-rate").innerText = "–";
+    document.getElementById("st-kcal").innerText = "mind. 2 Messungen nötig";
   }
 
-  const box = document.getElementById("status-box");
-  box.className = `status-box ${onTrack ? "status-good" : "status-bad"}`;
-  document.getElementById("st-title").innerText = `Status (${currentProfile}) vom ${formatDE(latest.date)}`;
-  const sign = diff > 0 ? "+" : "";
-  const label = onTrack ? (isLossGoal ? "leichter als Soll" : "im Plan") : (isLossGoal ? "schwerer als Soll" : "unter Soll");
-  document.getElementById("st-diff").innerText = `${sign}${diff.toFixed(2)} kg (${label})`;
-  document.getElementById("st-meta").innerHTML = `Soll: <strong>${targetToday.toFixed(2)} kg</strong> · Ø letzte ${last7.length}: <strong>${avg7.toFixed(2)} kg</strong><br>${rateText}`;
-
-  // --- FORTSCHRITTSBALKEN BERECHNEN ---
-  const rawPct = calculateProgressPct(currentProfile);
+  // --- FORTSCHRITTS-KARTE ---
+  const rawPct = calculateProgressPct(currentTab);
   const clampedPct = Math.max(0, Math.min(100, rawPct));
   const remainingKg = Math.max(0, isLossGoal ? (latest.weight - goals.goalWeight) : (goals.goalWeight - latest.weight));
 
   document.getElementById("prog-pct").innerText = `${Math.round(rawPct)} % geschafft`;
   document.getElementById("prog-rem").innerText = remainingKg === 0 ? "Ziel erreicht! 🎉" : `noch ${remainingKg.toFixed(1)} kg`;
-  document.getElementById("prog-fill").style.width = `${clampedPct}%`;
+  const progFill = document.getElementById("prog-fill");
+  progFill.style.width = `${clampedPct}%`;
+  progFill.className = `progress-fill ${onTrack ? "good" : "bad"}`;
 
   // --- CHART DATEN & ZOOM ---
   const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
