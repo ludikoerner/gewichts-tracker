@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Gewichts-Tracker</title>
-  <link rel="stylesheet" href="style.css?v=5" />
+  <link rel="stylesheet" href="style.css?v=6" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 </head>
@@ -78,28 +78,24 @@
 
     <!-- 2x2 STATISTIK-KACHELN -->
     <div class="stat-grid">
-      <!-- Kachel 1: Soll-Abweichung (Grün/Rot) -->
       <div id="tile-status" class="stat-tile status-good">
         <div class="tile-label">Soll-Abweichung</div>
         <div class="tile-main" id="st-diff">--</div>
         <div class="tile-sub" id="st-target">Soll heute: --</div>
       </div>
 
-      <!-- Kachel 2: 7-Tage-Schnitt vs. Vorwoche -->
       <div class="stat-tile">
         <div class="tile-label">Ø Letzte 7 Tage</div>
         <div class="tile-main" id="st-avg7">--</div>
         <div class="tile-sub" id="st-avg7-diff">vs. 7 Tage davor: --</div>
       </div>
 
-      <!-- Kachel 3: Wochentempo -->
       <div class="stat-tile">
         <div class="tile-label">Wochentempo</div>
         <div class="tile-main" id="st-rate">--</div>
         <div class="tile-sub" id="st-kcal">mind. 2 Messungen</div>
       </div>
 
-      <!-- Kachel 4: Zielgewicht + Setup-Button -->
       <div class="stat-tile">
         <div class="tile-header-row">
           <span class="tile-label">Zielgewicht</span>
@@ -153,15 +149,33 @@
 
   <!-- TEAM-ANSICHT (GEMEINSAM) -->
   <div id="team-view" class="hidden">
-    <div class="card team-hero">
-      <div class="tile-label" style="margin-bottom:4px;">TEAM LUDWIG & HANNAH</div>
-      <div class="team-pct-big" id="team-total-pct">0 %</div>
-      <div class="sub" style="margin-bottom:12px;">Gemeinsamer Zielfortschritt</div>
-      <div class="progress-track" style="height:12px;">
-        <div class="progress-fill team-fill" id="team-total-fill" style="width: 0%;"></div>
+    <!-- 2er-HERO-GRID: GEMEINSAMER FORTSCHRITT + TEAM-STREAK -->
+    <div class="stat-grid" style="margin-bottom: 14px;">
+      <div class="stat-tile team-stat-card">
+        <div class="tile-label">Team-Fortschritt</div>
+        <div class="team-pct-big" id="team-total-pct">0 %</div>
+        <div class="progress-track" style="height:8px; margin-top:6px;">
+          <div class="progress-fill team-fill" id="team-total-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <div class="stat-tile team-stat-card">
+        <div class="tile-label">Team-Streak</div>
+        <div class="team-streak-big" id="team-streak-val">🤝 0 Tage</div>
+        <div class="tile-sub" id="team-streak-sub">Beide am selben Tag</div>
       </div>
     </div>
 
+    <!-- GEMEINSAME TEAM-FORTSCHRITTSKURVE (0% - 100%) -->
+    <div class="card">
+      <div class="chart-header">
+        <strong style="font-size:0.95rem;">Gemeinsamer Weg (%)</strong>
+        <span class="sub" style="font-size:0.76rem;">0 % → 100 %</span>
+      </div>
+      <canvas id="teamChart"></canvas>
+    </div>
+
+    <!-- PARTNER-KARTEN -->
     <div id="team-cards-container"></div>
   </div>
 
@@ -178,6 +192,6 @@
   </div>
 
   <script src="config.js"></script>
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
