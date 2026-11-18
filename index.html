@@ -7,17 +7,20 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Gewichts-Tracker</title>
-  <link rel="stylesheet" href="style.css?v=7" />
+  <link rel="stylesheet" href="style.css?v=8" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 </head>
 <body>
 
-  <!-- HEADER -->
+  <!-- HEADER (MIT ZURÜCK-BUTTON BEI FREMDEN PROFILEN) -->
   <header>
-    <div>
-      <h1>Gewichts-Tracker</h1>
-      <div class="sub hidden" id="logged-user-label">Angemeldet</div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button class="header-back-btn hidden" id="btn-header-back" onclick="backFromOtherProfile()">← Team</button>
+      <div>
+        <h1 id="header-title">Gewichts-Tracker</h1>
+        <div class="sub hidden" id="logged-user-label">Angemeldet</div>
+      </div>
     </div>
     <div style="display:flex; align-items:center; gap:8px;">
       <div class="sync-badge" id="sync-status">Bereit</div>
@@ -126,15 +129,6 @@
 
   <!-- PROFIL-ANSICHT (EIGENES ODER FREMDES PROFIL IM NUR-LESE-MODUS) -->
   <div id="app-view" class="hidden">
-    <!-- BANNER FÜR FREMDES PROFIL (NUR-LESE-MODUS) -->
-    <div id="readonly-banner" class="readonly-banner hidden">
-      <div>
-        <strong id="readonly-name">Profil von --</strong>
-        <div style="font-size:0.75rem; opacity:0.85;">Nur-Lese-Ansicht</div>
-      </div>
-      <button type="button" class="readonly-back-btn" onclick="viewOwnProfile()">← Zu mir</button>
-    </div>
-
     <!-- EINGABE-KACHEL (NUR BEI EIGENEM PROFIL SICHTBAR) -->
     <div class="card" id="entry-input-card">
       <div class="grid-2">
@@ -243,10 +237,36 @@
       </div>
     </div>
 
+    <!-- UNTERGRUPPEN (STRENGE STREAK) -->
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <strong style="font-size:0.95rem;">🤝 Untergruppen (Strenge Streak)</strong>
+        <button type="button" class="small-add-btn" onclick="toggleSubgroupCreator()">+ Neu</button>
+      </div>
+
+      <!-- FORMULAR ZUM GRÜNDEN EINER UNTERGRUPPE -->
+      <div id="subgroup-creator" class="subgroup-creator hidden">
+        <div style="margin-bottom:8px;">
+          <label>Name der Untergruppe</label>
+          <input type="text" id="sg-name-input" placeholder="z. B. Ludwig & Hannah" />
+        </div>
+        <div style="margin-bottom:10px;">
+          <label>Mitglieder auswählen (du bist automatisch dabei)</label>
+          <div id="sg-members-checklist" class="viewers-list"></div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="action-btn btn-primary" style="margin-top:0;" onclick="createSubgroup()">Gründen</button>
+          <button type="button" class="btn-ghost" onclick="toggleSubgroupCreator()">Abbrechen</button>
+        </div>
+      </div>
+
+      <div id="subgroups-list"></div>
+    </div>
+
     <!-- STREAK-RANKING -->
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <strong style="font-size:0.95rem;">🔥 Streak-Ranking</strong>
+        <strong style="font-size:0.95rem;">🔥 Einzel-Streak-Ranking</strong>
         <span class="sub" style="font-size:0.75rem;">Längste aktive Serie</span>
       </div>
       <div id="team-ranking-list"></div>
@@ -279,6 +299,6 @@
   </div>
 
   <script src="config.js"></script>
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>
