@@ -21,134 +21,25 @@
   document.head.appendChild(link);
 })();
 
-const PROFILES = ["Ludwig", "Hannah"];
-let currentTab = localStorage.getItem("wt_active_profile") || "Ludwig";
+// --- STATE ---
+let authSession = JSON.parse(localStorage.getItem("wt_auth_session") || "null"); // { username, hash }
+let appStore = JSON.parse(localStorage.getItem("wt_app_store") || "null"); // { me, allUsernames, profiles }
+let activeMainTab = "mine"; // "mine" | "team"
+let viewedProfile = null;   // Derzeit betrachtetes Profil (eigenes oder fremdes)
 let chartZoom = localStorage.getItem("wt_chart_zoom") || "all";
 let chartInstance = null;
 let teamChartInstance = null;
 let rewardQueue = [];
 
-function goalsKey(prof = currentTab) { return `wt_goals_${prof}`; }
-function entriesKey(prof = currentTab) { return `wt_entries_${prof}`; }
-function rewardsKey(prof = currentTab) { return `wt_rewards_${prof}`; }
-
-// --- MEILENSTEIN-DEFINITIONEN ---
-function getMilestoneDefinitions(prof) {
-  const isHannah = prof === "Hannah";
-  return [
-    {
-      id: "streak_5",
-      type: "streak",
-      threshold: 5,
-      shelfIcon: "🔥",
-      shelfLabel: "5 Tage",
-      tag: "5-TAGE-STREAK",
-      modalIcon: "🔥",
-      title: "5 Tage in Folge!",
-      text: `Stark gestartet, ${prof}! Die erste Hürde ist genommen – Routine schlägt Motivation.`
-    },
-    {
-      id: "streak_10",
-      type: "streak",
-      threshold: 10,
-      shelfIcon: "⚡",
-      shelfLabel: "10 Tage",
-      tag: "10-TAGE-STREAK",
-      modalIcon: "⚡",
-      title: "10 Tage Streak!",
-      text: "Zweistellig! Zehn Tage lückenlos drangeblieben. Das wird langsam zur Gewohnheit."
-    },
-    {
-      id: "streak_25",
-      type: "streak",
-      threshold: 25,
-      shelfIcon: "🥉",
-      shelfLabel: "25 Tage",
-      tag: "25-TAGE-STREAK",
-      modalIcon: "🏅",
-      title: "25 Tage am Stück!",
-      text: `Ein Vierteljahrhundert! Deine Konstanz ist beeindruckend, ${prof}.`
-    },
-    {
-      id: "streak_50",
-      type: "streak",
-      threshold: 50,
-      shelfIcon: "🥈",
-      shelfLabel: "50 Tage",
-      tag: "50-TAGE-STREAK",
-      modalIcon: "🚀",
-      title: "50 Tage Streak!",
-      text: "50 Tage ohne Ausnahme – absolute Maschinen-Mentalität!"
-    },
-    {
-      id: "streak_100",
-      type: "streak",
-      threshold: 100,
-      shelfIcon: "👑",
-      shelfLabel: "100 Tage",
-      tag: "100-TAGE-STREAK",
-      modalIcon: "👑",
-      title: "100 Tage Legende!",
-      text: "Dreistellig! 100 Tage durchgezogen – das macht euch so schnell keiner nach."
-    },
-    {
-      id: "pct_10",
-      type: "pct",
-      threshold: 10,
-      shelfIcon: "🌱",
-      shelfLabel: "10 %",
-      tag: "10 % ZIEL ERREICHT",
-      modalIcon: isHannah ? "😘" : "🌱",
-      title: isHannah ? "Aller Anfang ist schwer 😘" : "10 % geschafft!",
-      text: isHannah
-        ? "Hier ein Bussi damit du dran bleibst 😘"
-        : "Der Anfang ist gemacht, Ludwig! Die ersten 10 % liegen hinter dir."
-    },
-    {
-      id: "pct_25",
-      type: "pct",
-      threshold: 25,
-      shelfIcon: isHannah ? "😘" : "🎯",
-      shelfLabel: "25 %",
-      tag: "25 % ZIEL ERREICHT",
-      modalIcon: isHannah ? "😘😘" : "🎯",
-      title: isHannah ? "Jetzt geht es richtig los 😘😘" : "Viertel-Meile: 25 %!",
-      text: isHannah
-        ? "Bleib dran Schatzimausibussibärli 😘😘"
-        : "Ein Viertel des Weges ist geschafft – dein Kurs stimmt!"
-    },
-    {
-      id: "pct_50",
-      type: "pct",
-      threshold: 50,
-      shelfIcon: isHannah ? "❤️" : "🏔️",
-      shelfLabel: "50 %",
-      tag: "50 % ZIEL ERREICHT",
-      modalIcon: isHannah ? "❤️" : "🏔️",
-      title: isHannah ? "Zur Hälfte hast du es geschafft ❤️" : "Bergfest: 50 %!",
-      text: isHannah
-        ? "Ich glaub an dich ❤️"
-        : "Halbzeit, Ludwig! Ab jetzt geht es auf der Zielgeraden bergab (im besten Sinne)."
-    },
-    {
-      id: "pct_100",
-      type: "pct",
-      threshold: 100,
-      shelfIcon: "🏆",
-      shelfLabel: "100 %",
-      tag: "100 % ZIEL ERREICHT",
-      modalIcon: isHannah ? "❤️❤️❤️" : "🏆",
-      title: isHannah ? "Du hast es geschafft ❤️❤️❤️" : "ZIEL ERREICHT: 100 %!",
-      text: isHannah
-        ? "Ich bin soooo stolz auf dich ❤️❤️❤️"
-        : "Wahnsinn, Ludwig! Du hast dein Zielgewicht geknackt. Zeit zum Feiern!"
-    }
-  ];
+function isOwnProfile() {
+  return authSession && viewedProfile === authSession.username;
 }
 
-function getUnlockedRewards(prof = currentTab) {
-  const raw = localStorage.getItem(rewardsKey(prof));
-  return raw ? JSON.parse(raw) : [];
+// --- SHA-256 PASSWORT HASHING ---
+async function hashPassword(plain) {
+  const data = new TextEncoder().encode("wt_salt_2026_" + plain);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
 function setSyncBadge(text, isOk = false) {
@@ -158,6 +49,219 @@ function setSyncBadge(text, isOk = false) {
   el.className = isOk ? "sync-badge sync-ok" : "sync-badge";
 }
 
+// --- MEILENSTEIN-DEFINITIONEN ---
+function getMilestoneDefinitions(prof) {
+  const isHannah = prof === "Hannah";
+  return [
+    {
+      id: "streak_5", type: "streak", threshold: 5, shelfIcon: "🔥", shelfLabel: "5 Tage",
+      tag: "5-TAGE-STREAK", modalIcon: "🔥", title: "5 Tage in Folge!",
+      text: `Stark gestartet, ${prof}! Die erste Hürde ist genommen – Routine schlägt Motivation.`
+    },
+    {
+      id: "streak_10", type: "streak", threshold: 10, shelfIcon: "⚡", shelfLabel: "10 Tage",
+      tag: "10-TAGE-STREAK", modalIcon: "⚡", title: "10 Tage Streak!",
+      text: "Zweistellig! Zehn Tage lückenlos drangeblieben. Das wird langsam zur Gewohnheit."
+    },
+    {
+      id: "streak_25", type: "streak", threshold: 25, shelfIcon: "🥉", shelfLabel: "25 Tage",
+      tag: "25-TAGE-STREAK", modalIcon: "🏅", title: "25 Tage am Stück!",
+      text: `Ein Vierteljahrhundert! Deine Konstanz ist beeindruckend, ${prof}.`
+    },
+    {
+      id: "streak_50", type: "streak", threshold: 50, shelfIcon: "🥈", shelfLabel: "50 Tage",
+      tag: "50-TAGE-STREAK", modalIcon: "🚀", title: "50 Tage Streak!",
+      text: "50 Tage ohne Ausnahme – absolute Maschinen-Mentalität!"
+    },
+    {
+      id: "streak_100", type: "streak", threshold: 100, shelfIcon: "👑", shelfLabel: "100 Tage",
+      tag: "100-TAGE-STREAK", modalIcon: "👑", title: "100 Tage Legende!",
+      text: "Dreistellig! 100 Tage durchgezogen – das macht euch so schnell keiner nach."
+    },
+    {
+      id: "pct_10", type: "pct", threshold: 10, shelfIcon: "🌱", shelfLabel: "10 %",
+      tag: "10 % ZIEL ERREICHT", modalIcon: isHannah ? "😘" : "🌱",
+      title: isHannah ? "Aller Anfang ist schwer 😘" : "10 % geschafft!",
+      text: isHannah ? "Hier ein Bussi damit du dran bleibst 😘" : `Der Anfang ist gemacht, ${prof}! Die ersten 10 % liegen hinter dir.`
+    },
+    {
+      id: "pct_25", type: "pct", threshold: 25, shelfIcon: isHannah ? "😘" : "🎯", shelfLabel: "25 %",
+      tag: "25 % ZIEL ERREICHT", modalIcon: isHannah ? "😘😘" : "🎯",
+      title: isHannah ? "Jetzt geht es richtig los 😘😘" : "Viertel-Meile: 25 %!",
+      text: isHannah ? "Bleib dran Schatzimausibussibärli 😘😘" : "Ein Viertel des Weges ist geschafft – dein Kurs stimmt!"
+    },
+    {
+      id: "pct_50", type: "pct", threshold: 50, shelfIcon: isHannah ? "❤️" : "🏔️", shelfLabel: "50 %",
+      tag: "50 % ZIEL ERREICHT", modalIcon: isHannah ? "❤️" : "🏔️",
+      title: isHannah ? "Zur Hälfte hast du es geschafft ❤️" : "Bergfest: 50 %!",
+      text: isHannah ? "Ich glaub an dich ❤️" : `Halbzeit, ${prof}! Ab jetzt geht es auf der Zielgeraden bergab (im besten Sinne).`
+    },
+    {
+      id: "pct_100", type: "pct", threshold: 100, shelfIcon: "🏆", shelfLabel: "100 %",
+      tag: "100 % ZIEL ERREICHT", modalIcon: isHannah ? "❤️❤️❤️" : "🏆",
+      title: isHannah ? "Du hast es geschafft ❤️❤️❤️" : "ZIEL ERREICHT: 100 %!",
+      text: isHannah ? "Ich bin soooo stolz auf dich ❤️❤️❤️" : `Wahnsinn, ${prof}! Du hast dein Zielgewicht geknackt. Zeit zum Feiern!`
+    }
+  ];
+}
+
+// --- API KOMMUNIKATION ---
+async function callApi(payload) {
+  if (typeof API_URL === "undefined" || !API_URL.startsWith("http")) {
+    throw new Error("API_URL fehlt in config.js");
+  }
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(payload)
+  });
+  return await res.json();
+}
+
+async function callAuthedApi(payload) {
+  if (!authSession) throw new Error("Nicht angemeldet");
+  payload.authUser = authSession.username;
+  payload.authHash = authSession.hash;
+  return await callApi(payload);
+}
+
+// --- AUTH LOGIK ---
+function switchAuthMode(mode) {
+  document.getElementById("auth-tab-login").classList.toggle("active", mode === "login");
+  document.getElementById("auth-tab-register").classList.toggle("active", mode === "register");
+  document.getElementById("auth-login-box").classList.toggle("hidden", mode !== "login");
+  document.getElementById("auth-register-box").classList.toggle("hidden", mode !== "register");
+}
+
+async function submitLogin() {
+  const username = document.getElementById("login-username").value.trim();
+  const password = document.getElementById("login-password").value;
+  if (!username || !password) {
+    alert("Bitte Profilname und Passwort eingeben.");
+    return;
+  }
+
+  setSyncBadge("Prüfe...");
+  try {
+    const hash = await hashPassword(password);
+    const res = await callApi({ action: "fetchAll", authUser: username, authHash: hash });
+    if (res.status !== "ok") {
+      setSyncBadge("Fehler");
+      alert(res.message || "Anmeldung fehlgeschlagen.");
+      return;
+    }
+
+    authSession = { username: res.me.username, hash };
+    localStorage.setItem("wt_auth_session", JSON.stringify(authSession));
+    appStore = res;
+    localStorage.setItem("wt_app_store", JSON.stringify(appStore));
+    viewedProfile = authSession.username;
+    activeMainTab = "mine";
+
+    setSyncBadge("✓ Cloud", true);
+    enterAuthenticatedApp();
+  } catch (err) {
+    setSyncBadge("Fehler");
+    alert("Verbindungsfehler zum Server.");
+  }
+}
+
+async function submitRegister() {
+  const rawName = document.getElementById("reg-username").value.trim();
+  const password = document.getElementById("reg-password").value;
+  const shareTeam = document.getElementById("reg-share-team").checked;
+
+  if (!rawName || password.length < 4) {
+    alert("Bitte einen Namen und ein Passwort (mind. 4 Zeichen) eingeben.");
+    return;
+  }
+
+  setSyncBadge("Erstelle...");
+  try {
+    const hash = await hashPassword(password);
+    const regRes = await callApi({
+      action: "register",
+      username: rawName,
+      passwordHash: hash,
+      shareTeam
+    });
+
+    if (regRes.status !== "ok") {
+      setSyncBadge("Fehler");
+      alert(regRes.message || "Registrierung fehlgeschlagen.");
+      return;
+    }
+
+    authSession = { username: regRes.username, hash };
+    localStorage.setItem("wt_auth_session", JSON.stringify(authSession));
+    viewedProfile = authSession.username;
+    activeMainTab = "mine";
+
+    await syncAllFromCloud();
+    enterAuthenticatedApp();
+  } catch (err) {
+    setSyncBadge("Fehler");
+    alert("Verbindungsfehler zum Server.");
+  }
+}
+
+function logout() {
+  if (!confirm("Wirklich abmelden?")) return;
+  localStorage.removeItem("wt_auth_session");
+  localStorage.removeItem("wt_app_store");
+  authSession = null;
+  appStore = null;
+  viewedProfile = null;
+  showAuthScreen();
+}
+
+function showAuthScreen() {
+  document.getElementById("auth-view").classList.remove("hidden");
+  document.getElementById("privacy-view").classList.add("hidden");
+  document.getElementById("main-nav").classList.add("hidden");
+  document.getElementById("setup-view").classList.add("hidden");
+  document.getElementById("app-view").classList.add("hidden");
+  document.getElementById("team-view").classList.add("hidden");
+  document.getElementById("logged-user-label").classList.add("hidden");
+  document.getElementById("btn-privacy").classList.add("hidden");
+  document.getElementById("btn-logout").classList.add("hidden");
+  setSyncBadge("Nicht angemeldet");
+}
+
+// --- CLOUD SYNC ---
+async function syncAllFromCloud() {
+  if (!authSession) return;
+  setSyncBadge("Sync...");
+  try {
+    const res = await callAuthedApi({ action: "fetchAll" });
+    if (res.status === "ok") {
+      appStore = res;
+      localStorage.setItem("wt_app_store", JSON.stringify(appStore));
+      setSyncBadge("✓ Cloud", true);
+      refreshCurrentScreen();
+    } else {
+      logout();
+    }
+  } catch (err) {
+    setSyncBadge("Offline");
+  }
+}
+
+// --- DATEN-ZUGRIFF AUS STORE ---
+function getProfileData(prof = viewedProfile) {
+  if (!appStore || !appStore.profiles || !appStore.profiles[prof]) {
+    return { username: prof, shareTeam: false, goals: null, entries: [], rewards: [] };
+  }
+  const p = appStore.profiles[prof];
+  p.entries = (p.entries || []).sort((a, b) => a.date.localeCompare(b.date));
+  return p;
+}
+
+function getGoals(prof = viewedProfile) { return getProfileData(prof).goals; }
+function getEntries(prof = viewedProfile) { return getProfileData(prof).entries; }
+function getUnlockedRewards(prof = viewedProfile) { return getProfileData(prof).rewards || []; }
+
+// --- BERECHNUNGEN ---
 function calculateStreak(prof) {
   const entries = getEntries(prof);
   if (entries.length === 0) return 0;
@@ -167,46 +271,12 @@ function calculateStreak(prof) {
   const yesterday = addDaysISO(today, -1);
 
   let checkDate = null;
-  if (dateSet.has(today)) {
-    checkDate = today;
-  } else if (dateSet.has(yesterday)) {
-    checkDate = yesterday;
-  } else {
-    return 0;
-  }
+  if (dateSet.has(today)) checkDate = today;
+  else if (dateSet.has(yesterday)) checkDate = yesterday;
+  else return 0;
 
   let streak = 0;
   while (dateSet.has(checkDate)) {
-    streak++;
-    checkDate = addDaysISO(checkDate, -1);
-  }
-  return streak;
-}
-
-// Gemeinsamer Team-Streak: Tage in Folge, an denen BEIDE gewogen haben
-function calculateTeamStreak() {
-  const entriesL = getEntries("Ludwig");
-  const entriesH = getEntries("Hannah");
-  if (entriesL.length === 0 || entriesH.length === 0) return 0;
-
-  const setL = new Set(entriesL.map(e => e.date));
-  const setH = new Set(entriesH.map(e => e.date));
-  const bothDates = new Set([...setL].filter(d => setH.has(d)));
-
-  const today = todayISO();
-  const yesterday = addDaysISO(today, -1);
-
-  let checkDate = null;
-  if (bothDates.has(today)) {
-    checkDate = today;
-  } else if (bothDates.has(yesterday)) {
-    checkDate = yesterday;
-  } else {
-    return 0;
-  }
-
-  let streak = 0;
-  while (bothDates.has(checkDate)) {
     streak++;
     checkDate = addDaysISO(checkDate, -1);
   }
@@ -218,11 +288,7 @@ function calculateProgressPctForWeight(weight, goals) {
   const isLossGoal = goals.goalWeight <= goals.startWeight;
   const totalDelta = Math.abs(goals.startWeight - goals.goalWeight);
   if (totalDelta <= 0) return 0;
-
-  const achievedDelta = isLossGoal
-    ? (goals.startWeight - weight)
-    : (weight - goals.startWeight);
-
+  const achievedDelta = isLossGoal ? (goals.startWeight - weight) : (weight - goals.startWeight);
   return (achievedDelta / totalDelta) * 100;
 }
 
@@ -230,11 +296,9 @@ function calculateProgressPct(prof) {
   const goals = getGoals(prof);
   const entries = getEntries(prof);
   if (!goals || entries.length === 0) return 0;
-  const latest = entries[entries.length - 1];
-  return calculateProgressPctForWeight(latest.weight, goals);
+  return calculateProgressPctForWeight(entries[entries.length - 1].weight, goals);
 }
 
-// Berechnet Durchschnitt der letzten 7 Kalendertage (Tag 0..-6) vs. davor (Tag -7..-13)
 function calculate7DayComparison(prof) {
   const entries = getEntries(prof);
   const today = todayISO();
@@ -244,307 +308,129 @@ function calculate7DayComparison(prof) {
   const currEntries = entries.filter(e => e.date >= startCurr && e.date <= today);
   const prevEntries = entries.filter(e => e.date >= startPrev && e.date < startCurr);
 
-  const avgCurr = currEntries.length > 0
-    ? currEntries.reduce((s, e) => s + e.weight, 0) / currEntries.length
-    : null;
-  const avgPrev = prevEntries.length > 0
-    ? prevEntries.reduce((s, e) => s + e.weight, 0) / prevEntries.length
-    : null;
+  const avgCurr = currEntries.length > 0 ? currEntries.reduce((s, e) => s + e.weight, 0) / currEntries.length : null;
+  const avgPrev = prevEntries.length > 0 ? prevEntries.reduce((s, e) => s + e.weight, 0) / prevEntries.length : null;
 
   return { avgCurr, avgPrev, countCurr: currEntries.length, countPrev: prevEntries.length };
 }
 
-function updateProfileTabs() {
-  PROFILES.forEach(prof => {
-    const btn = document.getElementById(`tab-${prof}`);
-    if (!btn) return;
-    btn.classList.toggle("active", currentTab === prof);
-    const streak = calculateStreak(prof);
-    if (streak >= 5) {
-      btn.innerHTML = `${prof} <span class="streak-pill">🔥 ${streak}</span>`;
-    } else {
-      btn.textContent = prof;
-    }
-  });
-  const teamBtn = document.getElementById("tab-Gemeinsam");
-  if (teamBtn) {
-    teamBtn.classList.toggle("active", currentTab === "Gemeinsam");
-  }
+// --- NAVIGATION & SCREENS ---
+function enterAuthenticatedApp() {
+  document.getElementById("auth-view").classList.add("hidden");
+  document.getElementById("privacy-view").classList.add("hidden");
+  document.getElementById("logged-user-label").classList.remove("hidden");
+  document.getElementById("logged-user-label").innerText = `Hallo, ${authSession.username}`;
+  document.getElementById("btn-privacy").classList.remove("hidden");
+  document.getElementById("btn-logout").classList.remove("hidden");
+
+  if (!viewedProfile) viewedProfile = authSession.username;
+  refreshCurrentScreen();
 }
 
-function renderTrophyShelf() {
-  const unlocked = new Set(getUnlockedRewards(currentTab));
-  const defs = getMilestoneDefinitions(currentTab);
-  const unlockedCount = defs.filter(d => unlocked.has(d.id)).length;
+function refreshCurrentScreen() {
+  if (!authSession || !appStore) return;
 
-  document.getElementById("trophy-count").innerText = `${unlockedCount} / ${defs.length}`;
-  const grid = document.getElementById("trophy-grid");
+  const canAccessTeam = Boolean(appStore.me && appStore.me.shareTeam);
+  const navEl = document.getElementById("main-nav");
+  navEl.classList.toggle("hidden", !canAccessTeam);
 
-  grid.innerHTML = defs.map(m => {
-    const isUnlocked = unlocked.has(m.id);
-    const clickAttr = isUnlocked ? `onclick="previewReward('${m.id}')"` : "";
-    return `
-      <div class="trophy-item ${isUnlocked ? "unlocked" : ""}" ${clickAttr} title="${m.title}">
-        <div class="trophy-icon">${m.shelfIcon}</div>
-        <div class="trophy-label">${m.shelfLabel}</div>
-      </div>
-    `;
-  }).join("");
-}
+  const mineBtn = document.getElementById("tab-mine");
+  const myStreak = calculateStreak(authSession.username);
+  mineBtn.innerHTML = myStreak >= 5
+    ? `${authSession.username} <span class="streak-pill">🔥 ${myStreak}</span>`
+    : authSession.username;
 
-function previewReward(rewardId) {
-  const def = getMilestoneDefinitions(currentTab).find(m => m.id === rewardId);
-  if (!def) return;
-  showRewardPopup(def, false);
-}
+  mineBtn.classList.toggle("active", activeMainTab === "mine");
+  document.getElementById("tab-team").classList.toggle("active", activeMainTab === "team");
 
-async function checkAndUnlockMilestones() {
-  if (!PROFILES.includes(currentTab)) return;
-  const streak = calculateStreak(currentTab);
-  const pct = calculateProgressPct(currentTab);
-  const unlocked = getUnlockedRewards(currentTab);
-  const defs = getMilestoneDefinitions(currentTab);
-
-  const newlyUnlocked = [];
-
-  for (const m of defs) {
-    if (unlocked.includes(m.id)) continue;
-    const hit = (m.type === "streak" && streak >= m.threshold) ||
-                (m.type === "pct" && pct >= m.threshold);
-    if (hit) {
-      unlocked.push(m.id);
-      newlyUnlocked.push(m);
-    }
-  }
-
-  if (newlyUnlocked.length > 0) {
-    localStorage.setItem(rewardsKey(currentTab), JSON.stringify(unlocked));
-    renderTrophyShelf();
-
-    rewardQueue.push(...newlyUnlocked);
-    if (document.getElementById("reward-modal").classList.contains("hidden")) {
-      showNextRewardInQueue();
-    }
-
-    for (const m of newlyUnlocked) {
-      await pushToCloud({ action: "unlockReward", rewardId: m.id });
-    }
-  }
-}
-
-function showNextRewardInQueue() {
-  if (rewardQueue.length === 0) return;
-  const next = rewardQueue.shift();
-  showRewardPopup(next, true);
-}
-
-function showRewardPopup(milestone, withConfetti = true) {
-  document.getElementById("modal-icon").innerText = milestone.modalIcon;
-  document.getElementById("modal-tag").innerText = milestone.tag;
-  document.getElementById("modal-title").innerText = milestone.title;
-  document.getElementById("modal-text").innerText = milestone.text;
-  document.getElementById("reward-modal").classList.remove("hidden");
-
-  if (withConfetti) {
-    launchConfetti(currentTab === "Hannah" ? ["❤️", "😘", "✨", "🎉"] : ["🔥", "🏆", "⭐", "🎉"]);
-  }
-}
-
-function closeRewardModal() {
-  document.getElementById("reward-modal").classList.add("hidden");
-  document.getElementById("confetti-layer").innerHTML = "";
-  if (rewardQueue.length > 0) {
-    setTimeout(showNextRewardInQueue, 250);
-  }
-}
-
-function launchConfetti(symbols) {
-  const layer = document.getElementById("confetti-layer");
-  layer.innerHTML = "";
-  for (let i = 0; i < 28; i++) {
-    const el = document.createElement("div");
-    el.className = "confetti-piece";
-    el.innerText = symbols[i % symbols.length];
-    el.style.left = `${Math.random() * 100}%`;
-    el.style.animationDuration = `${1.8 + Math.random() * 1.6}s`;
-    el.style.animationDelay = `${Math.random() * 0.4}s`;
-    layer.appendChild(el);
-  }
-}
-
-function setZoom(mode) {
-  chartZoom = mode;
-  localStorage.setItem("wt_chart_zoom", mode);
-  document.getElementById("zoom-all").classList.toggle("active", mode === "all");
-  document.getElementById("zoom-30").classList.toggle("active", mode === "30");
-  renderAll();
-}
-
-function stepWeight(delta) {
-  const input = document.getElementById("entry-weight");
-  let current = parseFloat(input.value.replace(",", "."));
-  if (isNaN(current)) {
-    const entries = getEntries();
-    current = entries.length > 0 ? entries[entries.length - 1].weight : 80.0;
-  }
-  const next = Math.round((current + delta) * 10) / 10;
-  input.value = next.toFixed(1);
-}
-
-async function switchProfile(tab) {
-  currentTab = tab;
-  localStorage.setItem("wt_active_profile", tab);
-  updateProfileTabs();
-
-  if (tab === "Gemeinsam") {
+  if (activeMainTab === "team" && canAccessTeam) {
     showTeamView();
-  } else if (getGoals(tab)) {
-    showApp(false);
   } else {
-    openSetup();
-  }
-  await syncFromCloud();
-}
-
-async function fetchProfileData(prof) {
-  const url = `${API_URL}?profile=${encodeURIComponent(prof)}`;
-  const res = await fetch(url);
-  const data = await res.json();
-
-  if (data.goals) {
-    localStorage.setItem(goalsKey(prof), JSON.stringify(data.goals));
-  } else {
-    localStorage.removeItem(goalsKey(prof));
-  }
-
-  if (Array.isArray(data.entries)) {
-    localStorage.setItem(entriesKey(prof), JSON.stringify(data.entries));
-  }
-
-  if (Array.isArray(data.rewards)) {
-    const localRew = getUnlockedRewards(prof);
-    const merged = Array.from(new Set([...localRew, ...data.rewards]));
-    localStorage.setItem(rewardsKey(prof), JSON.stringify(merged));
-  }
-}
-
-async function syncFromCloud() {
-  if (typeof API_URL === "undefined" || !API_URL.startsWith("http")) {
-    setSyncBadge("Lokal");
-    return;
-  }
-  setSyncBadge("Sync...");
-  try {
-    await Promise.all(PROFILES.map(p => fetchProfileData(p)));
-    updateProfileTabs();
-    setSyncBadge("✓ Cloud", true);
-
-    if (currentTab === "Gemeinsam") {
-      showTeamView();
-    } else if (getGoals(currentTab)) {
-      showApp(false);
-    } else {
+    activeMainTab = "mine";
+    if (isOwnProfile() && !getGoals(authSession.username)) {
       openSetup();
+    } else {
+      showProfileView(viewedProfile || authSession.username);
     }
-  } catch (err) {
-    setSyncBadge("Offline");
   }
 }
 
-async function pushToCloud(payload) {
-  if (typeof API_URL === "undefined" || !API_URL.startsWith("http")) return;
-  payload.profile = currentTab;
+function switchMainTab(tab) {
+  activeMainTab = tab;
+  if (tab === "mine") {
+    viewedProfile = authSession.username;
+  }
+  refreshCurrentScreen();
+  syncAllFromCloud();
+}
+
+function viewOwnProfile() {
+  viewedProfile = authSession.username;
+  activeMainTab = "mine";
+  refreshCurrentScreen();
+}
+
+function openOtherProfile(username) {
+  viewedProfile = username;
+  activeMainTab = "mine";
+  refreshCurrentScreen();
+}
+
+// --- PRIVATSPHÄRE & TEAM EINSTELLUNGEN ---
+function openPrivacySettings() {
+  document.getElementById("privacy-view").classList.remove("hidden");
+  document.getElementById("main-nav").classList.add("hidden");
+  document.getElementById("setup-view").classList.add("hidden");
+  document.getElementById("app-view").classList.add("hidden");
+  document.getElementById("team-view").classList.add("hidden");
+
+  document.getElementById("priv-share-team").checked = Boolean(appStore.me.shareTeam);
+  const others = (appStore.allUsernames || []).filter(u => u !== authSession.username);
+  const allowed = new Set(appStore.me.allowedViewers || []);
+
+  const listEl = document.getElementById("priv-viewers-list");
+  if (others.length === 0) {
+    listEl.innerHTML = `<div class="sub">Noch keine weiteren Nutzer registriert.</div>`;
+  } else {
+    listEl.innerHTML = others.map(u => `
+      <label class="checkbox-row">
+        <input type="checkbox" class="priv-viewer-cb" value="${u}" ${allowed.has(u) ? "checked" : ""} />
+        <span>${u}</span>
+      </label>
+    `).join("");
+  }
+}
+
+function closePrivacySettings() {
+  document.getElementById("privacy-view").classList.add("hidden");
+  refreshCurrentScreen();
+}
+
+async function savePrivacySettings() {
+  const shareTeam = document.getElementById("priv-share-team").checked;
+  const allowedViewers = Array.from(document.querySelectorAll(".priv-viewer-cb:checked")).map(cb => cb.value);
+
   setSyncBadge("Speichere...");
   try {
-    await fetch(API_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify(payload)
-    });
-    setSyncBadge("✓ Cloud", true);
+    const res = await callAuthedApi({ action: "updateSettings", shareTeam, allowedViewers });
+    if (res.status === "ok") {
+      document.getElementById("privacy-view").classList.add("hidden");
+      await syncAllFromCloud();
+    }
   } catch (err) {
-    setSyncBadge("Sync-Fehler");
+    setSyncBadge("Fehler");
   }
 }
 
-function formatDE(dateInput) {
-  if (!dateInput) return "";
-  const str = String(dateInput).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
-    const [y, m, d] = str.split("-");
-    return `${d}.${m}.${y}`;
-  }
-  const dObj = new Date(str);
-  if (!isNaN(dObj.getTime())) {
-    return dObj.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
-  }
-  return str;
-}
-
-function todayISO() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function addDaysISO(isoStr, days) {
-  const d = new Date(isoStr + "T12:00:00");
-  d.setDate(d.getDate() + days);
-  return d.toISOString().split("T")[0];
-}
-
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") {
-    const dateInput = document.getElementById("entry-date");
-    if (dateInput) dateInput.value = todayISO();
-    syncFromCloud();
-  }
-});
-
-window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-  if (currentTab === "Gemeinsam") {
-    renderTeamChart();
-  } else if (getGoals()) {
-    renderAll();
-  }
-});
-
-function getGoals(prof = currentTab) {
-  const raw = localStorage.getItem(goalsKey(prof));
-  return raw ? JSON.parse(raw) : null;
-}
-
-function getEntries(prof = currentTab) {
-  const raw = localStorage.getItem(entriesKey(prof));
-  const list = raw ? JSON.parse(raw) : [];
-  return list.sort((a, b) => a.date.localeCompare(b.date));
-}
-
-async function init() {
-  updateProfileTabs();
-  document.getElementById("zoom-all").classList.toggle("active", chartZoom === "all");
-  document.getElementById("zoom-30").classList.toggle("active", chartZoom === "30");
-
-  if (currentTab === "Gemeinsam") {
-    showTeamView();
-  } else if (getGoals(currentTab)) {
-    showApp(false);
-  } else {
-    openSetup();
-  }
-  await syncFromCloud();
-}
-
+// --- SETUP (NUR EIGENES PROFIL) ---
 function openSetup() {
+  if (!isOwnProfile()) return;
   document.getElementById("setup-view").classList.remove("hidden");
   document.getElementById("app-view").classList.add("hidden");
   document.getElementById("team-view").classList.add("hidden");
-  document.getElementById("setup-heading").innerText = `Ziele festlegen (${currentTab})`;
+  document.getElementById("setup-heading").innerText = `Ziele festlegen (${authSession.username})`;
 
-  const goals = getGoals();
+  const goals = getGoals(authSession.username);
   document.getElementById("btn-cancel-setup").classList.toggle("hidden", !goals);
   document.getElementById("setup-start-date").value = goals ? goals.startDate : todayISO();
   document.getElementById("setup-end-date").value = goals ? goals.endDate : "2026-12-31";
@@ -553,8 +439,8 @@ function openSetup() {
 }
 
 function cancelSetup() {
-  if (getGoals()) {
-    showApp(false);
+  if (getGoals(authSession.username)) {
+    showProfileView(authSession.username);
   }
 }
 
@@ -570,304 +456,101 @@ async function saveSetup() {
   }
 
   const goalsObj = { startDate, endDate, startWeight, goalWeight };
-  localStorage.setItem(goalsKey(), JSON.stringify(goalsObj));
-  await pushToCloud({ action: "saveGoals", goals: goalsObj });
+  const myData = getProfileData(authSession.username);
+  myData.goals = goalsObj;
+  localStorage.setItem("wt_app_store", JSON.stringify(appStore));
 
-  const entries = getEntries();
-  if (!entries.some(e => e.date === startDate)) {
+  setSyncBadge("Speichere...");
+  await callAuthedApi({ action: "saveGoals", goals: goalsObj });
+
+  if (!myData.entries.some(e => e.date === startDate)) {
     const firstEntry = { date: startDate, weight: startWeight };
-    entries.push(firstEntry);
-    localStorage.setItem(entriesKey(), JSON.stringify(entries));
-    await pushToCloud({ action: "saveEntry", entry: firstEntry });
+    myData.entries.push(firstEntry);
+    localStorage.setItem("wt_app_store", JSON.stringify(appStore));
+    await callAuthedApi({ action: "saveEntry", entry: firstEntry });
   }
-  updateProfileTabs();
-  showApp(false);
+
+  setSyncBadge("✓ Cloud", true);
+  refreshCurrentScreen();
 }
 
-function showApp(triggerSync = true) {
+// --- EINZELPROFIL ANZEIGEN (EIGENES ODER NUR-LESE) ---
+function showProfileView(prof) {
+  viewedProfile = prof;
+  const own = isOwnProfile();
+
   document.getElementById("setup-view").classList.add("hidden");
   document.getElementById("team-view").classList.add("hidden");
   document.getElementById("app-view").classList.remove("hidden");
-  document.getElementById("entry-date").value = todayISO();
 
-  document.getElementById("hist-heading").innerText = `Letzte Messungen (${currentTab})`;
+  // Nur-Lese-Steuerung
+  document.getElementById("readonly-banner").classList.toggle("hidden", own);
+  document.getElementById("readonly-name").innerText = `Profil von ${prof}`;
+  document.getElementById("entry-input-card").classList.toggle("hidden", !own);
+  document.getElementById("btn-edit-goals").classList.toggle("hidden", !own);
 
-  const entries = getEntries();
-  if (entries.length > 0) {
-    document.getElementById("entry-weight").value = entries[entries.length - 1].weight.toFixed(1);
+  if (own) {
+    document.getElementById("entry-date").value = todayISO();
+    const entries = getEntries(prof);
+    document.getElementById("entry-weight").value = entries.length > 0 ? entries[entries.length - 1].weight.toFixed(1) : "";
+  }
+
+  document.getElementById("hist-heading").innerText = `Letzte Messungen (${prof})`;
+
+  // Freigegebene private Profile anzeigen (wenn man auf dem eigenen Profil ist)
+  const sharedBox = document.getElementById("shared-private-box");
+  if (own && appStore && appStore.profiles) {
+    const otherVisible = Object.keys(appStore.profiles).filter(u => u !== authSession.username);
+    if (otherVisible.length > 0) {
+      sharedBox.classList.remove("hidden");
+      document.getElementById("shared-private-list").innerHTML = otherVisible.map(u => `
+        <button type="button" class="shared-pill-btn" onclick="openOtherProfile('${u}')">👁️ ${u}</button>
+      `).join("");
+    } else {
+      sharedBox.classList.add("hidden");
+    }
   } else {
-    document.getElementById("entry-weight").value = "";
+    sharedBox.classList.add("hidden");
   }
 
-  renderAll();
-  if (triggerSync) syncFromCloud();
+  renderProfileData(prof);
 }
 
-// --- TEAM-ANSICHT & GEMEINSAMER GRAPH ---
-function showTeamView() {
-  document.getElementById("setup-view").classList.add("hidden");
-  document.getElementById("app-view").classList.add("hidden");
-  document.getElementById("team-view").classList.remove("hidden");
+function renderProfileData(prof) {
+  const goals = getGoals(prof);
+  const entries = getEntries(prof);
+  const own = isOwnProfile();
 
-  const today = todayISO();
-  let sumPct = 0;
-  let activeCount = 0;
-
-  const cardsHtml = PROFILES.map(prof => {
-    const goals = getGoals(prof);
-    const entries = getEntries(prof);
-    const streak = calculateStreak(prof);
-    const rawPct = calculateProgressPct(prof);
-    const clampedPct = Math.max(0, Math.min(100, rawPct));
-
-    if (goals) {
-      sumPct += clampedPct;
-      activeCount++;
-    }
-
-    const weighedToday = entries.some(e => e.date === today);
-    const comp = calculate7DayComparison(prof);
-    const avg7Str = comp.avgCurr !== null ? `${comp.avgCurr.toFixed(1)} kg` : "–";
-
-    let delta7Str = "";
-    if (comp.avgCurr !== null && comp.avgPrev !== null) {
-      const d7 = comp.avgCurr - comp.avgPrev;
-      delta7Str = ` (${d7 > 0 ? "+" : ""}${d7.toFixed(2)} kg vs. Vorwoche)`;
-    }
-
-    const isLossGoal = goals ? goals.goalWeight <= goals.startWeight : true;
-    const latest = entries.length > 0 ? entries[entries.length - 1] : null;
-    const remKg = (goals && latest)
-      ? Math.max(0, isLossGoal ? (latest.weight - goals.goalWeight) : (goals.goalWeight - latest.weight))
-      : null;
-
-    const unlockedCount = getUnlockedRewards(prof).length;
-
-    return `
-      <div class="card partner-card" onclick="switchProfile('${prof}')">
-        <div class="partner-header">
-          <div class="partner-name">
-            <span>${prof}</span>
-            ${streak >= 5 ? `<span class="streak-pill">🔥 ${streak}</span>` : ""}
-          </div>
-          <span class="today-badge ${weighedToday ? "today-done" : "today-open"}">
-            ${weighedToday ? "✅ Heute gewogen" : "⏳ Heute offen"}
-          </span>
-        </div>
-
-        <div class="progress-labels">
-          <span>${goals ? `${Math.round(rawPct)} % geschafft` : "Noch kein Ziel"}</span>
-          <span>${remKg !== null ? (remKg === 0 ? "Ziel erreicht! 🎉" : `noch ${remKg.toFixed(1)} kg`) : ""}</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill" style="width: ${clampedPct}%;"></div>
-        </div>
-
-        <div class="partner-stats">
-          <span>Ø 7 Tage: <strong>${avg7Str}</strong>${delta7Str}</span>
-          <span>🏆 ${unlockedCount} / 9</span>
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  const teamPct = activeCount > 0 ? (sumPct / activeCount) : 0;
-  document.getElementById("team-total-pct").innerText = `${Math.round(teamPct)} %`;
-  document.getElementById("team-total-fill").style.width = `${Math.max(0, Math.min(100, teamPct))}%`;
-
-  const teamStreak = calculateTeamStreak();
-  document.getElementById("team-streak-val").innerText = `🤝 ${teamStreak} ${teamStreak === 1 ? "Tag" : "Tage"}`;
-  document.getElementById("team-streak-sub").innerText = teamStreak > 0
-    ? "Gemeinsam in Folge gewogen"
-    : "Wiegt euch beide heute!";
-
-  document.getElementById("team-cards-container").innerHTML = cardsHtml;
-
-  renderTeamChart();
-}
-
-function renderTeamChart() {
-  const ctx = document.getElementById("teamChart");
-  if (!ctx) return;
-
-  const activeProfiles = PROFILES.filter(p => getGoals(p) && getEntries(p).length > 0);
-  if (activeProfiles.length === 0) {
-    if (teamChartInstance) teamChartInstance.destroy();
-    return;
-  }
-
-  // Alle eindeutigen Datumspunkte sammeln
-  const allDatesSet = new Set();
-  const profileData = activeProfiles.map(prof => {
-    const goals = getGoals(prof);
-    const entries = getEntries(prof);
-    entries.forEach(e => allDatesSet.add(e.date));
-    return { prof, goals, entries };
-  });
-
-  const sortedDates = Array.from(allDatesSet).sort();
-
-  // Für jeden Tag den kombinierten Team-Prozentwert (0 - 100 %) berechnen
-  const teamSeries = sortedDates.map(date => {
-    let sumPct = 0;
-    let count = 0;
-    for (const p of profileData) {
-      // Letzten Eintrag bis einschließlich diesem Datum suchen
-      let lastEntry = null;
-      for (const e of p.entries) {
-        if (e.date <= date) lastEntry = e;
-        else break;
-      }
-      const w = lastEntry ? lastEntry.weight : p.goals.startWeight;
-      const pct = Math.max(0, Math.min(100, calculateProgressPctForWeight(w, p.goals)));
-      sumPct += pct;
-      count++;
-    }
-    return { x: date, y: Math.round((sumPct / count) * 10) / 10 };
-  });
-
-  // Gemeinsamer Soll-Korridor (frühestes Startdatum -> spätestes Enddatum)
-  const minStart = profileData.reduce((min, p) => p.goals.startDate < min ? p.goals.startDate : min, profileData[0].goals.startDate);
-  const maxEnd = profileData.reduce((max, p) => p.goals.endDate > max ? p.goals.endDate : max, profileData[0].goals.endDate);
-
-  const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const gridColor = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)";
-  const tickColor = isDark ? "#94a3b8" : "#64748b";
-
-  if (teamChartInstance) teamChartInstance.destroy();
-  teamChartInstance = new Chart(ctx.getContext("2d"), {
-    type: "line",
-    data: {
-      datasets: [
-        {
-          label: "Soll-Kurs",
-          data: [{ x: minStart, y: 0 }, { x: maxEnd, y: 100 }],
-          borderColor: "#94a3b8",
-          borderDash: [6, 6],
-          borderWidth: 2,
-          pointRadius: 0
-        },
-        {
-          label: "Team-Fortschritt (%)",
-          data: teamSeries,
-          borderColor: "#8b5cf6",
-          backgroundColor: "rgba(139, 92, 246, 0.14)",
-          fill: true,
-          borderWidth: 2.8,
-          pointRadius: 3,
-          pointBackgroundColor: "#8b5cf6"
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: "top", labels: { boxWidth: 12, font: { size: 11 }, color: tickColor } },
-        tooltip: {
-          callbacks: {
-            title: (items) => formatDE(items[0].raw.x),
-            label: (item) => `${item.dataset.label}: ${item.raw.y.toFixed(1)} %`
-          }
-        }
-      },
-      scales: {
-        x: {
-          type: "time",
-          time: { unit: "day", tooltipFormat: "dd.MM.yyyy" },
-          grid: { color: gridColor },
-          ticks: {
-            maxTicksLimit: 6,
-            font: { size: 10 },
-            color: tickColor,
-            callback: (val) => new Date(val).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })
-          }
-        },
-        y: {
-          min: 0,
-          max: 100,
-          grid: { color: gridColor },
-          ticks: {
-            font: { size: 10 },
-            color: tickColor,
-            callback: (val) => `${val} %`
-          }
-        }
-      }
-    }
-  });
-}
-
-async function addEntry() {
-  const date = document.getElementById("entry-date").value;
-  const weight = parseFloat(document.getElementById("entry-weight").value.replace(",", "."));
-  if (!date || isNaN(weight)) {
-    alert("Bitte gültiges Datum und Gewicht eingeben.");
-    return;
-  }
-
-  const entryObj = { date, weight };
-  let entries = getEntries().filter(e => e.date !== date);
-  entries.push(entryObj);
-  localStorage.setItem(entriesKey(), JSON.stringify(entries));
-  document.getElementById("entry-weight").value = weight.toFixed(1);
-  
-  updateProfileTabs();
-  renderAll();
-
-  await pushToCloud({ action: "saveEntry", entry: entryObj });
-  await checkAndUnlockMilestones();
-}
-
-async function deleteEntry(date) {
-  if (!confirm(`Messung vom ${formatDE(date)} (${currentTab}) löschen?`)) return;
-  const entries = getEntries().filter(e => e.date !== date);
-  localStorage.setItem(entriesKey(), JSON.stringify(entries));
-  
-  updateProfileTabs();
-  renderAll();
-
-  await pushToCloud({ action: "deleteEntry", date });
-}
-
-function editEntry(date, weight) {
-  document.getElementById("entry-date").value = date;
-  document.getElementById("entry-weight").value = weight.toFixed(1);
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-function calcTargetAt(dateStr, goals) {
-  const dStart = new Date(goals.startDate);
-  const dEnd = new Date(goals.endDate);
-  const dCurr = new Date(dateStr);
-  const totalDays = (dEnd - dStart) / 86400000;
-  if (totalDays <= 0) return goals.goalWeight;
-  const passed = (dCurr - dStart) / 86400000;
-  return goals.startWeight + (goals.goalWeight - goals.startWeight) * (passed / totalDays);
-}
-
-function renderAll() {
-  const goals = getGoals();
-  const entries = getEntries();
-
-  renderTrophyShelf();
+  renderTrophyShelf(prof);
 
   if (goals) {
     document.getElementById("st-goal").innerText = `${goals.goalWeight.toFixed(1)} kg`;
     document.getElementById("st-goal-date").innerText = `bis ${formatDE(goals.endDate)}`;
+  } else {
+    document.getElementById("st-goal").innerText = "Kein Ziel";
+    document.getElementById("st-goal-date").innerText = "Noch nicht eingerichtet";
   }
 
   const histEl = document.getElementById("history-list");
   histEl.innerHTML = [...entries].reverse().map(e => `
     <div class="hist-item">
-      <div onclick="editEntry('${e.date}', ${e.weight})" style="cursor:pointer;">
+      <div ${own ? `onclick="editEntry('${e.date}', ${e.weight})" style="cursor:pointer;"` : ""}>
         <strong>${formatDE(e.date)}</strong> &nbsp;·&nbsp; ${e.weight.toFixed(1)} kg
       </div>
-      <button class="btn-danger" onclick="deleteEntry('${e.date}')">Löschen</button>
+      ${own ? `<button class="btn-danger" onclick="deleteEntry('${e.date}')">Löschen</button>` : ""}
     </div>
   `).join("");
 
-  if (entries.length === 0) {
+  if (!goals || entries.length === 0) {
+    document.getElementById("st-diff").innerText = "–";
+    document.getElementById("st-target").innerText = "Noch keine Messungen";
+    document.getElementById("st-avg7").innerText = "–";
+    document.getElementById("st-avg7-diff").innerText = "–";
+    document.getElementById("st-rate").innerText = "–";
+    document.getElementById("st-kcal").innerText = "–";
+    document.getElementById("prog-pct").innerText = "0 % geschafft";
+    document.getElementById("prog-rem").innerText = "noch -- kg";
+    document.getElementById("prog-fill").style.width = "0%";
     if (chartInstance) chartInstance.destroy();
     return;
   }
@@ -878,7 +561,7 @@ function renderAll() {
   const isLossGoal = goals.goalWeight <= goals.startWeight;
   const onTrack = isLossGoal ? diff <= 0 : diff >= 0;
 
-  // --- KACHEL 1: SOLL-ABWEICHUNG ---
+  // Kachel 1: Soll-Abweichung
   const tileStatus = document.getElementById("tile-status");
   tileStatus.className = `stat-tile ${onTrack ? "status-good" : "status-bad"}`;
   const sign = diff > 0 ? "+" : "";
@@ -886,8 +569,8 @@ function renderAll() {
   document.getElementById("st-diff").innerText = `${sign}${diff.toFixed(2)} kg`;
   document.getElementById("st-target").innerText = `Soll: ${targetToday.toFixed(2)} kg (${statusShort})`;
 
-  // --- KACHEL 2: LETZTE 7 TAGE VS. DAVORIGE 7 TAGE ---
-  const comp7 = calculate7DayComparison(currentTab);
+  // Kachel 2: 7-Tage-Schnitt vs. davor
+  const comp7 = calculate7DayComparison(prof);
   if (comp7.avgCurr !== null) {
     document.getElementById("st-avg7").innerText = `${comp7.avgCurr.toFixed(2)} kg`;
     if (comp7.avgPrev !== null) {
@@ -902,7 +585,7 @@ function renderAll() {
     document.getElementById("st-avg7-diff").innerText = "Keine Messung in 7 Tagen";
   }
 
-  // --- KACHEL 3: WOCHENTEMPO ---
+  // Kachel 3: Wochentempo
   const trendValues = entries.map((_, i) => {
     const slice = entries.slice(Math.max(0, i - 6), i + 1);
     return slice.reduce((s, e) => s + e.weight, 0) / slice.length;
@@ -938,8 +621,8 @@ function renderAll() {
     document.getElementById("st-kcal").innerText = "mind. 2 Messungen nötig";
   }
 
-  // --- FORTSCHRITTS-KARTE ---
-  const rawPct = calculateProgressPct(currentTab);
+  // Fortschritts-Karte
+  const rawPct = calculateProgressPct(prof);
   const clampedPct = Math.max(0, Math.min(100, rawPct));
   const remainingKg = Math.max(0, isLossGoal ? (latest.weight - goals.goalWeight) : (goals.goalWeight - latest.weight));
 
@@ -949,7 +632,7 @@ function renderAll() {
   progFill.style.width = `${clampedPct}%`;
   progFill.className = `progress-fill ${onTrack ? "good" : "bad"}`;
 
-  // --- CHART DATEN & ZOOM ---
+  // Chart
   const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const gridColor = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)";
   const tickColor = isDark ? "#94a3b8" : "#64748b";
@@ -1001,25 +684,433 @@ function renderAll() {
       },
       scales: {
         x: {
-          type: "time",
-          min: xMin,
-          max: xMax,
+          type: "time", min: xMin, max: xMax,
           time: { unit: "day", tooltipFormat: "dd.MM.yyyy" },
           grid: { color: gridColor },
           ticks: {
-            maxTicksLimit: 6,
-            font: { size: 10 },
-            color: tickColor,
+            maxTicksLimit: 6, font: { size: 10 }, color: tickColor,
+            callback: (val) => new Date(val).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })
+          }
+        },
+        y: { grid: { color: gridColor }, ticks: { font: { size: 10 }, color: tickColor } }
+      }
+    }
+  });
+}
+
+// --- TEAM-ANSICHT ---
+function getTeamMembers() {
+  if (!appStore || !appStore.profiles) return [];
+  return Object.values(appStore.profiles).filter(p => p.shareTeam);
+}
+
+function showTeamView() {
+  document.getElementById("setup-view").classList.add("hidden");
+  document.getElementById("app-view").classList.add("hidden");
+  document.getElementById("team-view").classList.remove("hidden");
+
+  const members = getTeamMembers();
+  const today = todayISO();
+
+  let sumPct = 0;
+  let activeGoalsCount = 0;
+
+  // 1. Streak-Ranking berechnen
+  const ranked = members.map(m => ({
+    username: m.username,
+    streak: calculateStreak(m.username),
+    pct: calculateProgressPct(m.username),
+    hasGoals: Boolean(m.goals)
+  })).sort((a, b) => b.streak - a.streak || b.pct - a.pct);
+
+  const medals = ["🥇", "🥈", "🥉"];
+  document.getElementById("team-ranking-list").innerHTML = ranked.map((r, idx) => `
+    <div class="rank-row" onclick="openOtherProfile('${r.username}')" style="cursor:pointer;">
+      <div class="rank-left">
+        <span class="rank-medal">${medals[idx] || `${idx + 1}.`}</span>
+        <span>${r.username}</span>
+      </div>
+      <span class="streak-pill" style="font-size:0.8rem;">🔥 ${r.streak} ${r.streak === 1 ? "Tag" : "Tage"}</span>
+    </div>
+  `).join("");
+
+  // 2. Partner-Karten & Team-Gesamtfortschritt
+  const cardsHtml = members.map(m => {
+    const prof = m.username;
+    const goals = m.goals;
+    const entries = m.entries || [];
+    const streak = calculateStreak(prof);
+    const rawPct = calculateProgressPct(prof);
+    const clampedPct = Math.max(0, Math.min(100, rawPct));
+
+    if (goals) {
+      sumPct += clampedPct;
+      activeGoalsCount++;
+    }
+
+    const weighedToday = entries.some(e => e.date === today);
+    const comp = calculate7DayComparison(prof);
+    const avg7Str = comp.avgCurr !== null ? `${comp.avgCurr.toFixed(1)} kg` : "–";
+
+    let delta7Str = "";
+    if (comp.avgCurr !== null && comp.avgPrev !== null) {
+      const d7 = comp.avgCurr - comp.avgPrev;
+      delta7Str = ` (${d7 > 0 ? "+" : ""}${d7.toFixed(2)} kg vs. davor)`;
+    }
+
+    const isLossGoal = goals ? goals.goalWeight <= goals.startWeight : true;
+    const latest = entries.length > 0 ? entries[entries.length - 1] : null;
+    const remKg = (goals && latest)
+      ? Math.max(0, isLossGoal ? (latest.weight - goals.goalWeight) : (goals.goalWeight - latest.weight))
+      : null;
+
+    const unlockedCount = (m.rewards || []).length;
+
+    return `
+      <div class="card partner-card" onclick="openOtherProfile('${prof}')">
+        <div class="partner-header">
+          <div class="partner-name">
+            <span>${prof}</span>
+            ${streak >= 5 ? `<span class="streak-pill">🔥 ${streak}</span>` : ""}
+          </div>
+          <span class="today-badge ${weighedToday ? "today-done" : "today-open"}">
+            ${weighedToday ? "✅ Heute gewogen" : "⏳ Heute offen"}
+          </span>
+        </div>
+
+        <div class="progress-labels">
+          <span>${goals ? `${Math.round(rawPct)} % geschafft` : "Noch kein Ziel"}</span>
+          <span>${remKg !== null ? (remKg === 0 ? "Ziel erreicht! 🎉" : `noch ${remKg.toFixed(1)} kg`) : ""}</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" style="width: ${clampedPct}%;"></div>
+        </div>
+
+        <div class="partner-stats">
+          <span>Ø 7 Tage: <strong>${avg7Str}</strong>${delta7Str}</span>
+          <span>🏆 ${unlockedCount} / 9</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const teamPct = activeGoalsCount > 0 ? (sumPct / activeGoalsCount) : 0;
+  document.getElementById("team-total-pct").innerText = `${Math.round(teamPct)} %`;
+  document.getElementById("team-member-count").innerText = `${members.length} ${members.length === 1 ? "Teammitglied" : "Teammitglieder"}`;
+  document.getElementById("team-total-fill").style.width = `${Math.max(0, Math.min(100, teamPct))}%`;
+  document.getElementById("team-cards-container").innerHTML = cardsHtml;
+
+  renderTeamChart();
+}
+
+function renderTeamChart() {
+  const ctx = document.getElementById("teamChart");
+  if (!ctx) return;
+
+  const activeMembers = getTeamMembers().filter(m => m.goals && m.entries && m.entries.length > 0);
+  if (activeMembers.length === 0) {
+    if (teamChartInstance) teamChartInstance.destroy();
+    return;
+  }
+
+  const allDatesSet = new Set();
+  activeMembers.forEach(m => m.entries.forEach(e => allDatesSet.add(e.date)));
+  const sortedDates = Array.from(allDatesSet).sort();
+
+  const teamSeries = sortedDates.map(date => {
+    let sumPct = 0;
+    for (const m of activeMembers) {
+      let lastEntry = null;
+      for (const e of m.entries) {
+        if (e.date <= date) lastEntry = e;
+        else break;
+      }
+      const w = lastEntry ? lastEntry.weight : m.goals.startWeight;
+      const pct = Math.max(0, Math.min(100, calculateProgressPctForWeight(w, m.goals)));
+      sumPct += pct;
+    }
+    return { x: date, y: Math.round((sumPct / activeMembers.length) * 10) / 10 };
+  });
+
+  const minStart = activeMembers.reduce((min, m) => m.goals.startDate < min ? m.goals.startDate : min, activeMembers[0].goals.startDate);
+  const maxEnd = activeMembers.reduce((max, m) => m.goals.endDate > max ? m.goals.endDate : max, activeMembers[0].goals.endDate);
+
+  const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const gridColor = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)";
+  const tickColor = isDark ? "#94a3b8" : "#64748b";
+
+  if (teamChartInstance) teamChartInstance.destroy();
+  teamChartInstance = new Chart(ctx.getContext("2d"), {
+    type: "line",
+    data: {
+      datasets: [
+        {
+          label: "Soll-Kurs",
+          data: [{ x: minStart, y: 0 }, { x: maxEnd, y: 100 }],
+          borderColor: "#94a3b8", borderDash: [6, 6], borderWidth: 2, pointRadius: 0
+        },
+        {
+          label: "Team-Fortschritt (%)",
+          data: teamSeries,
+          borderColor: "#8b5cf6", backgroundColor: "rgba(139, 92, 246, 0.14)",
+          fill: true, borderWidth: 2.8, pointRadius: 3, pointBackgroundColor: "#8b5cf6"
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "top", labels: { boxWidth: 12, font: { size: 11 }, color: tickColor } },
+        tooltip: {
+          callbacks: {
+            title: (items) => formatDE(items[0].raw.x),
+            label: (item) => `${item.dataset.label}: ${item.raw.y.toFixed(1)} %`
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: "time", time: { unit: "day", tooltipFormat: "dd.MM.yyyy" },
+          grid: { color: gridColor },
+          ticks: {
+            maxTicksLimit: 6, font: { size: 10 }, color: tickColor,
             callback: (val) => new Date(val).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })
           }
         },
         y: {
-          grid: { color: gridColor },
-          ticks: { font: { size: 10 }, color: tickColor }
+          min: 0, max: 100, grid: { color: gridColor },
+          ticks: { font: { size: 10 }, color: tickColor, callback: (val) => `${val} %` }
         }
       }
     }
   });
+}
+
+// --- EIGENE EINTRÄGE SPEICHERN & LÖSCHEN ---
+function stepWeight(delta) {
+  if (!isOwnProfile()) return;
+  const input = document.getElementById("entry-weight");
+  let current = parseFloat(input.value.replace(",", "."));
+  if (isNaN(current)) {
+    const entries = getEntries(authSession.username);
+    current = entries.length > 0 ? entries[entries.length - 1].weight : 80.0;
+  }
+  const next = Math.round((current + delta) * 10) / 10;
+  input.value = next.toFixed(1);
+}
+
+async function addEntry() {
+  if (!isOwnProfile()) return;
+  const date = document.getElementById("entry-date").value;
+  const weight = parseFloat(document.getElementById("entry-weight").value.replace(",", "."));
+  if (!date || isNaN(weight)) {
+    alert("Bitte gültiges Datum und Gewicht eingeben.");
+    return;
+  }
+
+  const entryObj = { date, weight };
+  const myData = getProfileData(authSession.username);
+  myData.entries = myData.entries.filter(e => e.date !== date);
+  myData.entries.push(entryObj);
+  localStorage.setItem("wt_app_store", JSON.stringify(appStore));
+  document.getElementById("entry-weight").value = weight.toFixed(1);
+
+  refreshCurrentScreen();
+  setSyncBadge("Speichere...");
+  await callAuthedApi({ action: "saveEntry", entry: entryObj });
+  setSyncBadge("✓ Cloud", true);
+  await checkAndUnlockMilestones();
+}
+
+async function deleteEntry(date) {
+  if (!isOwnProfile()) return;
+  if (!confirm(`Messung vom ${formatDE(date)} löschen?`)) return;
+  const myData = getProfileData(authSession.username);
+  myData.entries = myData.entries.filter(e => e.date !== date);
+  localStorage.setItem("wt_app_store", JSON.stringify(appStore));
+
+  refreshCurrentScreen();
+  setSyncBadge("Lösche...");
+  await callAuthedApi({ action: "deleteEntry", date });
+  setSyncBadge("✓ Cloud", true);
+}
+
+function editEntry(date, weight) {
+  if (!isOwnProfile()) return;
+  document.getElementById("entry-date").value = date;
+  document.getElementById("entry-weight").value = weight.toFixed(1);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// --- TROPHÄEN & BELOHNUNGEN ---
+function renderTrophyShelf(prof) {
+  const unlocked = new Set(getUnlockedRewards(prof));
+  const defs = getMilestoneDefinitions(prof);
+  const unlockedCount = defs.filter(d => unlocked.has(d.id)).length;
+
+  document.getElementById("trophy-count").innerText = `${unlockedCount} / ${defs.length}`;
+  document.getElementById("trophy-grid").innerHTML = defs.map(m => {
+    const isUnlocked = unlocked.has(m.id);
+    const clickAttr = isUnlocked ? `onclick="previewReward('${prof}', '${m.id}')"` : "";
+    return `
+      <div class="trophy-item ${isUnlocked ? "unlocked" : ""}" ${clickAttr} title="${m.title}">
+        <div class="trophy-icon">${m.shelfIcon}</div>
+        <div class="trophy-label">${m.shelfLabel}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function previewReward(prof, rewardId) {
+  const def = getMilestoneDefinitions(prof).find(m => m.id === rewardId);
+  if (def) showRewardPopup(def, false, prof);
+}
+
+async function checkAndUnlockMilestones() {
+  if (!isOwnProfile()) return;
+  const prof = authSession.username;
+  const streak = calculateStreak(prof);
+  const pct = calculateProgressPct(prof);
+  const myData = getProfileData(prof);
+  const unlocked = myData.rewards || [];
+  const defs = getMilestoneDefinitions(prof);
+
+  const newlyUnlocked = [];
+  for (const m of defs) {
+    if (unlocked.includes(m.id)) continue;
+    const hit = (m.type === "streak" && streak >= m.threshold) ||
+                (m.type === "pct" && pct >= m.threshold);
+    if (hit) {
+      unlocked.push(m.id);
+      newlyUnlocked.push(m);
+    }
+  }
+
+  if (newlyUnlocked.length > 0) {
+    myData.rewards = unlocked;
+    localStorage.setItem("wt_app_store", JSON.stringify(appStore));
+    renderTrophyShelf(prof);
+
+    rewardQueue.push(...newlyUnlocked);
+    if (document.getElementById("reward-modal").classList.contains("hidden")) {
+      showNextRewardInQueue();
+    }
+
+    for (const m of newlyUnlocked) {
+      await callAuthedApi({ action: "unlockReward", rewardId: m.id });
+    }
+  }
+}
+
+function showNextRewardInQueue() {
+  if (rewardQueue.length === 0) return;
+  showRewardPopup(rewardQueue.shift(), true, authSession.username);
+}
+
+function showRewardPopup(milestone, withConfetti = true, prof = viewedProfile) {
+  document.getElementById("modal-icon").innerText = milestone.modalIcon;
+  document.getElementById("modal-tag").innerText = milestone.tag;
+  document.getElementById("modal-title").innerText = milestone.title;
+  document.getElementById("modal-text").innerText = milestone.text;
+  document.getElementById("reward-modal").classList.remove("hidden");
+
+  if (withConfetti) {
+    launchConfetti(prof === "Hannah" ? ["❤️", "😘", "✨", "🎉"] : ["🔥", "🏆", "⭐", "🎉"]);
+  }
+}
+
+function closeRewardModal() {
+  document.getElementById("reward-modal").classList.add("hidden");
+  document.getElementById("confetti-layer").innerHTML = "";
+  if (rewardQueue.length > 0) {
+    setTimeout(showNextRewardInQueue, 250);
+  }
+}
+
+function launchConfetti(symbols) {
+  const layer = document.getElementById("confetti-layer");
+  layer.innerHTML = "";
+  for (let i = 0; i < 28; i++) {
+    const el = document.createElement("div");
+    el.className = "confetti-piece";
+    el.innerText = symbols[i % symbols.length];
+    el.style.left = `${Math.random() * 100}%`;
+    el.style.animationDuration = `${1.8 + Math.random() * 1.6}s`;
+    el.style.animationDelay = `${Math.random() * 0.4}s`;
+    layer.appendChild(el);
+  }
+}
+
+function setZoom(mode) {
+  chartZoom = mode;
+  localStorage.setItem("wt_chart_zoom", mode);
+  document.getElementById("zoom-all").classList.toggle("active", mode === "all");
+  document.getElementById("zoom-30").classList.toggle("active", mode === "30");
+  if (viewedProfile) renderProfileData(viewedProfile);
+}
+
+// --- DATUM & START ---
+function formatDE(dateInput) {
+  if (!dateInput) return "";
+  const str = String(dateInput).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const [y, m, d] = str.split("-");
+    return `${d}.${m}.${y}`;
+  }
+  const dObj = new Date(str);
+  if (!isNaN(dObj.getTime())) {
+    return dObj.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+  return str;
+}
+
+function todayISO() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function addDaysISO(isoStr, days) {
+  const d = new Date(isoStr + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
+function calcTargetAt(dateStr, goals) {
+  const dStart = new Date(goals.startDate);
+  const dEnd = new Date(goals.endDate);
+  const dCurr = new Date(dateStr);
+  const totalDays = (dEnd - dStart) / 86400000;
+  if (totalDays <= 0) return goals.goalWeight;
+  const passed = (dCurr - dStart) / 86400000;
+  return goals.startWeight + (goals.goalWeight - goals.startWeight) * (passed / totalDays);
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && authSession) {
+    const dateInput = document.getElementById("entry-date");
+    if (dateInput) dateInput.value = todayISO();
+    syncAllFromCloud();
+  }
+});
+
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (!authSession) return;
+  if (activeMainTab === "team") renderTeamChart();
+  else if (viewedProfile) renderProfileData(viewedProfile);
+});
+
+async function init() {
+  document.getElementById("zoom-all").classList.toggle("active", chartZoom === "all");
+  document.getElementById("zoom-30").classList.toggle("active", chartZoom === "30");
+
+  if (authSession && appStore) {
+    viewedProfile = authSession.username;
+    enterAuthenticatedApp();
+    await syncAllFromCloud();
+  } else {
+    showAuthScreen();
+  }
 }
 
 init();
