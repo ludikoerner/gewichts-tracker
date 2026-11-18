@@ -23,9 +23,10 @@
 
 // --- STATE ---
 let authSession = JSON.parse(localStorage.getItem("wt_auth_session") || "null"); // { username, hash }
-let appStore = JSON.parse(localStorage.getItem("wt_app_store") || "null"); // { me, allUsernames, profiles }
+let appStore = JSON.parse(localStorage.getItem("wt_app_store") || "null"); // { me, allUsernames, profiles, subgroups }
 let activeMainTab = "mine"; // "mine" | "team"
 let viewedProfile = null;   // Derzeit betrachtetes Profil (eigenes oder fremdes)
+let openedFromTeam = false; // Merkt, ob ein fremdes Profil aus dem Team geöffnet wurde
 let chartZoom = localStorage.getItem("wt_chart_zoom") || "all";
 let chartInstance = null;
 let teamChartInstance = null;
@@ -157,6 +158,7 @@ async function submitLogin() {
     localStorage.setItem("wt_app_store", JSON.stringify(appStore));
     viewedProfile = authSession.username;
     activeMainTab = "mine";
+    openedFromTeam = false;
 
     setSyncBadge("✓ Cloud", true);
     enterAuthenticatedApp();
@@ -196,6 +198,7 @@ async function submitRegister() {
     localStorage.setItem("wt_auth_session", JSON.stringify(authSession));
     viewedProfile = authSession.username;
     activeMainTab = "mine";
+    openedFromTeam = false;
 
     await syncAllFromCloud();
     enterAuthenticatedApp();
@@ -212,6 +215,7 @@ function logout() {
   authSession = null;
   appStore = null;
   viewedProfile = null;
+  openedFromTeam = false;
   showAuthScreen();
 }
 
@@ -225,6 +229,8 @@ function showAuthScreen() {
   document.getElementById("logged-user-label").classList.add("hidden");
   document.getElementById("btn-privacy").classList.add("hidden");
   document.getElementById("btn-logout").classList.add("hidden");
+  document.getElementById("btn-header-back").classList.add("hidden");
+  document.getElementById("header-title").innerText = "Gewichts-Tracker";
   setSyncBadge("Nicht angemeldet");
 }
 
@@ -283,6 +289,35 @@ function calculateStreak(prof) {
   return streak;
 }
 
+// Strenge Streak einer Untergruppe: Alle Mitglieder müssen am selben Tag gewogen haben
+function calculateSubgroupStreak(memberNames) {
+  if (!Array.isArray(memberNames) || memberNames.length === 0) return 0;
+
+  const dateSets = memberNames.map(name => new Set(getEntries(name).map(e => e.date)));
+  if (dateSets.some(s => s.size === 0)) return 0;
+
+  // Schnittmenge aller Datum-Sets bilden
+  let commonDates = new Set(dateSets[0]);
+  for (let i = 1; i < dateSets.length; i++) {
+    commonDates = new Set([...commonDates].filter(d => dateSets[i].has(d)));
+  }
+
+  const today = todayISO();
+  const yesterday = addDaysISO(today, -1);
+
+  let checkDate = null;
+  if (commonDates.has(today)) checkDate = today;
+  else if (commonDates.has(yesterday)) checkDate = yesterday;
+  else return 0;
+
+  let streak = 0;
+  while (commonDates.has(checkDate)) {
+    streak++;
+    checkDate = addDaysISO(checkDate, -1);
+  }
+  return streak;
+}
+
 function calculateProgressPctForWeight(weight, goals) {
   if (!goals) return 0;
   const isLossGoal = goals.goalWeight <= goals.startWeight;
@@ -314,17 +349,36 @@ function calculate7DayComparison(prof) {
   return { avgCurr, avgPrev, countCurr: currEntries.length, countPrev: prevEntries.length };
 }
 
-// --- NAVIGATION & SCREENS ---
+// --- NAVIGATION & SCREENS (OPTION 2: TEAM-TAB BLEIBT AKTIV + ZURÜCK-BUTTON IM HEADER) ---
 function enterAuthenticatedApp() {
   document.getElementById("auth-view").classList.add("hidden");
   document.getElementById("privacy-view").classList.add("hidden");
-  document.getElementById("logged-user-label").classList.remove("hidden");
-  document.getElementById("logged-user-label").innerText = `Hallo, ${authSession.username}`;
   document.getElementById("btn-privacy").classList.remove("hidden");
   document.getElementById("btn-logout").classList.remove("hidden");
 
   if (!viewedProfile) viewedProfile = authSession.username;
   refreshCurrentScreen();
+}
+
+function updateHeaderState() {
+  const own = isOwnProfile();
+  const backBtn = document.getElementById("btn-header-back");
+  const titleEl = document.getElementById("header-title");
+  const subEl = document.getElementById("logged-user-label");
+
+  if (own || activeMainTab === "team") {
+    backBtn.classList.add("hidden");
+    titleEl.innerText = "Gewichts-Tracker";
+    subEl.classList.remove("hidden");
+    subEl.innerText = `Hallo, ${authSession.username}`;
+  } else {
+    // Fremdes Profil im Nur-Lese-Modus
+    backBtn.classList.remove("hidden");
+    backBtn.innerText = openedFromTeam ? "← Team" : `← ${authSession.username}`;
+    titleEl.innerText = `Profil: ${viewedProfile}`;
+    subEl.classList.remove("hidden");
+    subEl.innerText = "Nur-Lese-Ansicht";
+  }
 }
 
 function refreshCurrentScreen() {
@@ -340,8 +394,12 @@ function refreshCurrentScreen() {
     ? `${authSession.username} <span class="streak-pill">🔥 ${myStreak}</span>`
     : authSession.username;
 
-  mineBtn.classList.toggle("active", activeMainTab === "mine");
-  document.getElementById("tab-team").classList.toggle("active", activeMainTab === "team");
+  // Wenn ein fremdes Profil über Team geöffnet wurde, bleibt der Team-Tab aktiv
+  const teamTabShouldBeActive = (activeMainTab === "team") || (!isOwnProfile() && openedFromTeam);
+  mineBtn.classList.toggle("active", !teamTabShouldBeActive);
+  document.getElementById("tab-team").classList.toggle("active", teamTabShouldBeActive);
+
+  updateHeaderState();
 
   if (activeMainTab === "team" && canAccessTeam) {
     showTeamView();
@@ -357,6 +415,7 @@ function refreshCurrentScreen() {
 
 function switchMainTab(tab) {
   activeMainTab = tab;
+  openedFromTeam = false;
   if (tab === "mine") {
     viewedProfile = authSession.username;
   }
@@ -364,16 +423,23 @@ function switchMainTab(tab) {
   syncAllFromCloud();
 }
 
-function viewOwnProfile() {
+function backFromOtherProfile() {
   viewedProfile = authSession.username;
-  activeMainTab = "mine";
+  if (openedFromTeam) {
+    activeMainTab = "team";
+  } else {
+    activeMainTab = "mine";
+  }
+  openedFromTeam = false;
   refreshCurrentScreen();
 }
 
-function openOtherProfile(username) {
+function openOtherProfile(username, fromTeam = false) {
   viewedProfile = username;
+  openedFromTeam = fromTeam;
   activeMainTab = "mine";
   refreshCurrentScreen();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 // --- PRIVATSPHÄRE & TEAM EINSTELLUNGEN ---
@@ -483,9 +549,6 @@ function showProfileView(prof) {
   document.getElementById("team-view").classList.add("hidden");
   document.getElementById("app-view").classList.remove("hidden");
 
-  // Nur-Lese-Steuerung
-  document.getElementById("readonly-banner").classList.toggle("hidden", own);
-  document.getElementById("readonly-name").innerText = `Profil von ${prof}`;
   document.getElementById("entry-input-card").classList.toggle("hidden", !own);
   document.getElementById("btn-edit-goals").classList.toggle("hidden", !own);
 
@@ -504,7 +567,7 @@ function showProfileView(prof) {
     if (otherVisible.length > 0) {
       sharedBox.classList.remove("hidden");
       document.getElementById("shared-private-list").innerHTML = otherVisible.map(u => `
-        <button type="button" class="shared-pill-btn" onclick="openOtherProfile('${u}')">👁️ ${u}</button>
+        <button type="button" class="shared-pill-btn" onclick="openOtherProfile('${u}', false)">👁️ ${u}</button>
       `).join("");
     } else {
       sharedBox.classList.add("hidden");
@@ -698,10 +761,102 @@ function renderProfileData(prof) {
   });
 }
 
-// --- TEAM-ANSICHT ---
+// --- TEAM-ANSICHT & UNTERGRUPPEN ---
 function getTeamMembers() {
   if (!appStore || !appStore.profiles) return [];
   return Object.values(appStore.profiles).filter(p => p.shareTeam);
+}
+
+function toggleSubgroupCreator() {
+  const box = document.getElementById("subgroup-creator");
+  const isOpening = box.classList.contains("hidden");
+  box.classList.toggle("hidden");
+
+  if (isOpening) {
+    document.getElementById("sg-name-input").value = "";
+    const others = getTeamMembers().map(m => m.username).filter(u => u !== authSession.username);
+    const listEl = document.getElementById("sg-members-checklist");
+    if (others.length === 0) {
+      listEl.innerHTML = `<div class="sub">Keine weiteren Teammitglieder verfügbar.</div>`;
+    } else {
+      listEl.innerHTML = others.map(u => `
+        <label class="checkbox-row">
+          <input type="checkbox" class="sg-member-cb" value="${u}" />
+          <span>${u}</span>
+        </label>
+      `).join("");
+    }
+  }
+}
+
+async function createSubgroup() {
+  const name = document.getElementById("sg-name-input").value.trim();
+  const selected = Array.from(document.querySelectorAll(".sg-member-cb:checked")).map(cb => cb.value);
+
+  if (!name) {
+    alert("Bitte einen Namen für die Untergruppe eingeben.");
+    return;
+  }
+  if (selected.length === 0) {
+    alert("Bitte wähle mindestens ein weiteres Teammitglied aus.");
+    return;
+  }
+
+  setSyncBadge("Erstelle...");
+  try {
+    const res = await callAuthedApi({
+      action: "createSubgroup",
+      name,
+      members: [authSession.username, ...selected]
+    });
+    if (res.status === "ok") {
+      document.getElementById("subgroup-creator").classList.add("hidden");
+      await syncAllFromCloud();
+    } else {
+      alert(res.message || "Fehler beim Erstellen.");
+    }
+  } catch (err) {
+    setSyncBadge("Fehler");
+  }
+}
+
+async function deleteSubgroup(id, name) {
+  if (!confirm(`Untergruppe "${name}" wirklich auflösen?`)) return;
+  setSyncBadge("Lösche...");
+  try {
+    const res = await callAuthedApi({ action: "deleteSubgroup", id });
+    if (res.status === "ok") {
+      await syncAllFromCloud();
+    }
+  } catch (err) {
+    setSyncBadge("Fehler");
+  }
+}
+
+function renderSubgroupsList() {
+  const listEl = document.getElementById("subgroups-list");
+  const subgroups = (appStore && Array.isArray(appStore.subgroups)) ? appStore.subgroups : [];
+
+  if (subgroups.length === 0) {
+    listEl.innerHTML = `<div class="sub" style="padding:4px 0;">Noch keine Untergruppe angelegt. Tippe auf <strong>+ Neu</strong>, um eine gemeinsame strenge Streak zu starten.</div>`;
+    return;
+  }
+
+  listEl.innerHTML = subgroups.map(sg => {
+    const streak = calculateSubgroupStreak(sg.members);
+    return `
+      <div class="subgroup-item">
+        <div>
+          <div class="sg-title">${sg.name}</div>
+          <div class="sg-members">${sg.members.join(" · ")}</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="sg-streak-pill">🤝 ${streak} ${streak === 1 ? "Tag" : "Tage"}</span>
+          <button type="button" class="btn-ghost" style="text-decoration:none; font-size:0.9rem;" onclick="deleteSubgroup('${sg.id}', '${sg.name.replace(/'/g, "")}')" title="Untergruppe löschen">✕</button>
+        </div>
+      </div>
+    `;
+  }).join("");
 }
 
 function showTeamView() {
@@ -709,23 +864,24 @@ function showTeamView() {
   document.getElementById("app-view").classList.add("hidden");
   document.getElementById("team-view").classList.remove("hidden");
 
+  renderSubgroupsList();
+
   const members = getTeamMembers();
   const today = todayISO();
 
   let sumPct = 0;
   let activeGoalsCount = 0;
 
-  // 1. Streak-Ranking berechnen
+  // 1. Einzel-Streak-Ranking berechnen
   const ranked = members.map(m => ({
     username: m.username,
     streak: calculateStreak(m.username),
-    pct: calculateProgressPct(m.username),
-    hasGoals: Boolean(m.goals)
+    pct: calculateProgressPct(m.username)
   })).sort((a, b) => b.streak - a.streak || b.pct - a.pct);
 
   const medals = ["🥇", "🥈", "🥉"];
   document.getElementById("team-ranking-list").innerHTML = ranked.map((r, idx) => `
-    <div class="rank-row" onclick="openOtherProfile('${r.username}')" style="cursor:pointer;">
+    <div class="rank-row" onclick="openOtherProfile('${r.username}', true)" style="cursor:pointer;">
       <div class="rank-left">
         <span class="rank-medal">${medals[idx] || `${idx + 1}.`}</span>
         <span>${r.username}</span>
@@ -767,7 +923,7 @@ function showTeamView() {
     const unlockedCount = (m.rewards || []).length;
 
     return `
-      <div class="card partner-card" onclick="openOtherProfile('${prof}')">
+      <div class="card partner-card" onclick="openOtherProfile('${prof}', true)">
         <div class="partner-header">
           <div class="partner-name">
             <span>${prof}</span>
