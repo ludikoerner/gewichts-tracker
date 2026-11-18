@@ -32,6 +32,14 @@ let chartInstance = null;
 let teamChartInstance = null;
 let rewardQueue = [];
 
+const SUBGROUP_BADGES = [
+  { threshold: 5, icon: "🔥", label: "5d", title: "5 Tage gemeinsam!" },
+  { threshold: 10, icon: "⚡", label: "10d", title: "10 Tage gemeinsam!" },
+  { threshold: 25, icon: "🥉", label: "25d", title: "25 Tage gemeinsam!" },
+  { threshold: 50, icon: "🥈", label: "50d", title: "50 Tage gemeinsam!" },
+  { threshold: 100, icon: "👑", label: "100d", title: "100 Tage gemeinsam!" }
+];
+
 function isOwnProfile() {
   return authSession && viewedProfile === authSession.username;
 }
@@ -289,33 +297,54 @@ function calculateStreak(prof) {
   return streak;
 }
 
-// Strenge Streak einer Untergruppe: Alle Mitglieder müssen am selben Tag gewogen haben
-function calculateSubgroupStreak(memberNames) {
-  if (!Array.isArray(memberNames) || memberNames.length === 0) return 0;
+// Berechnet sowohl die aktuelle strenge Streak als auch den Rekord der Untergruppe
+function calculateSubgroupStats(memberNames) {
+  if (!Array.isArray(memberNames) || memberNames.length === 0) {
+    return { current: 0, best: 0 };
+  }
 
   const dateSets = memberNames.map(name => new Set(getEntries(name).map(e => e.date)));
-  if (dateSets.some(s => s.size === 0)) return 0;
+  if (dateSets.some(s => s.size === 0)) {
+    return { current: 0, best: 0 };
+  }
 
-  // Schnittmenge aller Datum-Sets bilden
+  // Schnittmenge aller Tage, an denen ALLE Mitglieder gewogen haben
   let commonDates = new Set(dateSets[0]);
   for (let i = 1; i < dateSets.length; i++) {
     commonDates = new Set([...commonDates].filter(d => dateSets[i].has(d)));
   }
 
+  if (commonDates.size === 0) return { current: 0, best: 0 };
+
+  // 1. Längste je erreichte Serie bestimmen
+  const sortedDates = Array.from(commonDates).sort();
+  let best = 1;
+  let run = 1;
+  for (let i = 1; i < sortedDates.length; i++) {
+    if (addDaysISO(sortedDates[i - 1], 1) === sortedDates[i]) {
+      run++;
+      if (run > best) best = run;
+    } else {
+      run = 1;
+    }
+  }
+
+  // 2. Aktive Serie (bis heute oder gestern) bestimmen
   const today = todayISO();
   const yesterday = addDaysISO(today, -1);
-
   let checkDate = null;
   if (commonDates.has(today)) checkDate = today;
   else if (commonDates.has(yesterday)) checkDate = yesterday;
-  else return 0;
 
-  let streak = 0;
-  while (commonDates.has(checkDate)) {
-    streak++;
-    checkDate = addDaysISO(checkDate, -1);
+  let current = 0;
+  if (checkDate) {
+    while (commonDates.has(checkDate)) {
+      current++;
+      checkDate = addDaysISO(checkDate, -1);
+    }
   }
-  return streak;
+
+  return { current, best: Math.max(best, current) };
 }
 
 function calculateProgressPctForWeight(weight, goals) {
@@ -349,7 +378,7 @@ function calculate7DayComparison(prof) {
   return { avgCurr, avgPrev, countCurr: currEntries.length, countPrev: prevEntries.length };
 }
 
-// --- NAVIGATION & SCREENS (OPTION 2: TEAM-TAB BLEIBT AKTIV + ZURÜCK-BUTTON IM HEADER) ---
+// --- NAVIGATION & SCREENS (TEAM-TAB BLEIBT AKTIV + ZURÜCK-BUTTON IM HEADER) ---
 function enterAuthenticatedApp() {
   document.getElementById("auth-view").classList.add("hidden");
   document.getElementById("privacy-view").classList.add("hidden");
@@ -372,7 +401,6 @@ function updateHeaderState() {
     subEl.classList.remove("hidden");
     subEl.innerText = `Hallo, ${authSession.username}`;
   } else {
-    // Fremdes Profil im Nur-Lese-Modus
     backBtn.classList.remove("hidden");
     backBtn.innerText = openedFromTeam ? "← Team" : `← ${authSession.username}`;
     titleEl.innerText = `Profil: ${viewedProfile}`;
@@ -394,7 +422,6 @@ function refreshCurrentScreen() {
     ? `${authSession.username} <span class="streak-pill">🔥 ${myStreak}</span>`
     : authSession.username;
 
-  // Wenn ein fremdes Profil über Team geöffnet wurde, bleibt der Team-Tab aktiv
   const teamTabShouldBeActive = (activeMainTab === "team") || (!isOwnProfile() && openedFromTeam);
   mineBtn.classList.toggle("active", !teamTabShouldBeActive);
   document.getElementById("tab-team").classList.toggle("active", teamTabShouldBeActive);
@@ -560,7 +587,6 @@ function showProfileView(prof) {
 
   document.getElementById("hist-heading").innerText = `Letzte Messungen (${prof})`;
 
-  // Freigegebene private Profile anzeigen (wenn man auf dem eigenen Profil ist)
   const sharedBox = document.getElementById("shared-private-box");
   if (own && appStore && appStore.profiles) {
     const otherVisible = Object.keys(appStore.profiles).filter(u => u !== authSession.username);
@@ -833,6 +859,17 @@ async function deleteSubgroup(id, name) {
   }
 }
 
+function previewSubgroupBadge(sgName, threshold) {
+  const badge = SUBGROUP_BADGES.find(b => b.threshold === threshold);
+  if (!badge) return;
+  showRewardPopup({
+    modalIcon: badge.icon,
+    tag: `TEAM-MEILENSTEIN · ${threshold} TAGE`,
+    title: `${sgName}: ${badge.title}`,
+    text: `Alle Mitglieder von "${sgName}" haben ${threshold} Tage in Folge gemeinsam durchgezogen!`
+  }, false);
+}
+
 function renderSubgroupsList() {
   const listEl = document.getElementById("subgroups-list");
   const subgroups = (appStore && Array.isArray(appStore.subgroups)) ? appStore.subgroups : [];
@@ -843,16 +880,34 @@ function renderSubgroupsList() {
   }
 
   listEl.innerHTML = subgroups.map(sg => {
-    const streak = calculateSubgroupStreak(sg.members);
+    const stats = calculateSubgroupStats(sg.members);
+    const safeName = sg.name.replace(/'/g, "");
+
+    const badgesHtml = SUBGROUP_BADGES.map(b => {
+      const unlocked = stats.best >= b.threshold;
+      const clickAttr = unlocked ? `onclick="previewSubgroupBadge('${safeName}', ${b.threshold})"` : "";
+      return `<span class="sg-badge ${unlocked ? "unlocked" : ""}" ${clickAttr} title="${b.title}">${b.icon} ${b.label}</span>`;
+    }).join("");
+
+    const bestHint = stats.best > stats.current
+      ? `<span class="sg-best-label">Rekord: ${stats.best}d</span>`
+      : "";
+
     return `
       <div class="subgroup-item">
-        <div>
-          <div class="sg-title">${sg.name}</div>
-          <div class="sg-members">${sg.members.join(" · ")}</div>
+        <div class="subgroup-top">
+          <div>
+            <div class="sg-title">${sg.name}</div>
+            <div class="sg-members">${sg.members.join(" · ")}</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="sg-streak-pill">🤝 ${stats.current} ${stats.current === 1 ? "Tag" : "Tage"}</span>
+            <button type="button" class="btn-ghost" style="text-decoration:none; font-size:0.9rem;" onclick="deleteSubgroup('${sg.id}', '${safeName}')" title="Untergruppe löschen">✕</button>
+          </div>
         </div>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span class="sg-streak-pill">🤝 ${streak} ${streak === 1 ? "Tag" : "Tage"}</span>
-          <button type="button" class="btn-ghost" style="text-decoration:none; font-size:0.9rem;" onclick="deleteSubgroup('${sg.id}', '${sg.name.replace(/'/g, "")}')" title="Untergruppe löschen">✕</button>
+        <div class="sg-badges-row">
+          ${badgesHtml}
+          ${bestHint}
         </div>
       </div>
     `;
