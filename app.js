@@ -32,14 +32,6 @@ let chartInstance = null;
 let teamChartInstance = null;
 let rewardQueue = [];
 
-const SUBGROUP_BADGES = [
-  { threshold: 5, icon: "🔥", label: "5d", title: "5 Tage gemeinsam!" },
-  { threshold: 10, icon: "⚡", label: "10d", title: "10 Tage gemeinsam!" },
-  { threshold: 25, icon: "🥉", label: "25d", title: "25 Tage gemeinsam!" },
-  { threshold: 50, icon: "🥈", label: "50d", title: "50 Tage gemeinsam!" },
-  { threshold: 100, icon: "👑", label: "100d", title: "100 Tage gemeinsam!" }
-];
-
 function isOwnProfile() {
   return authSession && viewedProfile === authSession.username;
 }
@@ -58,7 +50,7 @@ function setSyncBadge(text, isOk = false) {
   el.className = isOk ? "sync-badge sync-ok" : "sync-badge";
 }
 
-// --- MEILENSTEIN-DEFINITIONEN ---
+// --- PERSÖNLICHE MEILENSTEIN-DEFINITIONEN (INKL. GRUPPEN-STREAK-ABZEICHEN) ---
 function getMilestoneDefinitions(prof) {
   const isHannah = prof === "Hannah";
   return [
@@ -85,7 +77,7 @@ function getMilestoneDefinitions(prof) {
     {
       id: "streak_100", type: "streak", threshold: 100, shelfIcon: "👑", shelfLabel: "100 Tage",
       tag: "100-TAGE-STREAK", modalIcon: "👑", title: "100 Tage Legende!",
-      text: "Dreistellig! 100 Tage durchgezogen – das macht euch so schnell keiner nach."
+      text: "Dreistellig! 100 Tage durchgezogen – das macht dir so schnell keiner nach."
     },
     {
       id: "pct_10", type: "pct", threshold: 10, shelfIcon: "🌱", shelfLabel: "10 %",
@@ -110,6 +102,31 @@ function getMilestoneDefinitions(prof) {
       tag: "100 % ZIEL ERREICHT", modalIcon: isHannah ? "❤️❤️❤️" : "🏆",
       title: isHannah ? "Du hast es geschafft ❤️❤️❤️" : "ZIEL ERREICHT: 100 %!",
       text: isHannah ? "Ich bin soooo stolz auf dich ❤️❤️❤️" : `Wahnsinn, ${prof}! Du hast dein Zielgewicht geknackt. Zeit zum Feiern!`
+    },
+    {
+      id: "group_streak_5", type: "group_streak", threshold: 5, shelfIcon: "🤝", shelfLabel: "Team 5d",
+      tag: "GRUPPEN-STREAK · 5 TAGE", modalIcon: "🤝", title: "5 Tage Team-Power!",
+      text: `Stark, ${prof}! Du hast mit einer Gruppe 5 Tage in Folge gemeinsam durchgezogen.`
+    },
+    {
+      id: "group_streak_10", type: "group_streak", threshold: 10, shelfIcon: "🤜🤛", shelfLabel: "Team 10d",
+      tag: "GRUPPEN-STREAK · 10 TAGE", modalIcon: "🤜🤛", title: "10 Tage im Gleichschritt!",
+      text: `Zweistellig im Team! Du hast mit einer Gruppe 10 Tage lückenlos gemeinsam gewogen.`
+    },
+    {
+      id: "group_streak_25", type: "group_streak", threshold: 25, shelfIcon: "🛡️", shelfLabel: "Team 25d",
+      tag: "GRUPPEN-STREAK · 25 TAGE", modalIcon: "🛡️", title: "25 Tage Team-Bund!",
+      text: `Echter Zusammenhalt, ${prof}! 25 Tage am Stück hat niemand aus eurer Gruppe einen Tag ausgelassen.`
+    },
+    {
+      id: "group_streak_50", type: "group_streak", threshold: 50, shelfIcon: "⚔️", shelfLabel: "Team 50d",
+      tag: "GRUPPEN-STREAK · 50 TAGE", modalIcon: "⚔️", title: "50 Tage unzertrennlich!",
+      text: `50 Tage gemeinsame Disziplin – auf dich und deine Gruppe ist absolut Verlass!`
+    },
+    {
+      id: "group_streak_100", type: "group_streak", threshold: 100, shelfIcon: "🌟", shelfLabel: "Team 100d",
+      tag: "GRUPPEN-STREAK · 100 TAGE", modalIcon: "🌟", title: "100 Tage Dream-Team!",
+      text: `Legendär, ${prof}! 100 Tage in Folge gemeinsam am Start – das ist Teamgeist auf höchstem Niveau.`
     }
   ];
 }
@@ -170,6 +187,7 @@ async function submitLogin() {
 
     setSyncBadge("✓ Cloud", true);
     enterAuthenticatedApp();
+    await checkAndUnlockMilestones();
   } catch (err) {
     setSyncBadge("Fehler");
     alert("Verbindungsfehler zum Server.");
@@ -253,6 +271,7 @@ async function syncAllFromCloud() {
       localStorage.setItem("wt_app_store", JSON.stringify(appStore));
       setSyncBadge("✓ Cloud", true);
       refreshCurrentScreen();
+      await checkAndUnlockMilestones();
     } else {
       logout();
     }
@@ -297,7 +316,7 @@ function calculateStreak(prof) {
   return streak;
 }
 
-// Berechnet sowohl die aktuelle strenge Streak als auch den Rekord der Untergruppe
+// Strenge Streak einer Untergruppe (aktuell & Rekord)
 function calculateSubgroupStats(memberNames) {
   if (!Array.isArray(memberNames) || memberNames.length === 0) {
     return { current: 0, best: 0 };
@@ -308,7 +327,6 @@ function calculateSubgroupStats(memberNames) {
     return { current: 0, best: 0 };
   }
 
-  // Schnittmenge aller Tage, an denen ALLE Mitglieder gewogen haben
   let commonDates = new Set(dateSets[0]);
   for (let i = 1; i < dateSets.length; i++) {
     commonDates = new Set([...commonDates].filter(d => dateSets[i].has(d)));
@@ -316,7 +334,6 @@ function calculateSubgroupStats(memberNames) {
 
   if (commonDates.size === 0) return { current: 0, best: 0 };
 
-  // 1. Längste je erreichte Serie bestimmen
   const sortedDates = Array.from(commonDates).sort();
   let best = 1;
   let run = 1;
@@ -329,7 +346,6 @@ function calculateSubgroupStats(memberNames) {
     }
   }
 
-  // 2. Aktive Serie (bis heute oder gestern) bestimmen
   const today = todayISO();
   const yesterday = addDaysISO(today, -1);
   let checkDate = null;
@@ -345,6 +361,19 @@ function calculateSubgroupStats(memberNames) {
   }
 
   return { current, best: Math.max(best, current) };
+}
+
+// Höchste jemals erreichte Gruppen-Streak des Nutzers über alle seine Untergruppen hinweg
+function getMaxUserGroupStreak(prof) {
+  if (!appStore || !Array.isArray(appStore.subgroups)) return 0;
+  let maxBest = 0;
+  for (const sg of appStore.subgroups) {
+    if (Array.isArray(sg.members) && sg.members.includes(prof)) {
+      const stats = calculateSubgroupStats(sg.members);
+      if (stats.best > maxBest) maxBest = stats.best;
+    }
+  }
+  return maxBest;
 }
 
 function calculateProgressPctForWeight(weight, goals) {
@@ -378,7 +407,7 @@ function calculate7DayComparison(prof) {
   return { avgCurr, avgPrev, countCurr: currEntries.length, countPrev: prevEntries.length };
 }
 
-// --- NAVIGATION & SCREENS (TEAM-TAB BLEIBT AKTIV + ZURÜCK-BUTTON IM HEADER) ---
+// --- NAVIGATION & SCREENS ---
 function enterAuthenticatedApp() {
   document.getElementById("auth-view").classList.add("hidden");
   document.getElementById("privacy-view").classList.add("hidden");
@@ -859,17 +888,6 @@ async function deleteSubgroup(id, name) {
   }
 }
 
-function previewSubgroupBadge(sgName, threshold) {
-  const badge = SUBGROUP_BADGES.find(b => b.threshold === threshold);
-  if (!badge) return;
-  showRewardPopup({
-    modalIcon: badge.icon,
-    tag: `TEAM-MEILENSTEIN · ${threshold} TAGE`,
-    title: `${sgName}: ${badge.title}`,
-    text: `Alle Mitglieder von "${sgName}" haben ${threshold} Tage in Folge gemeinsam durchgezogen!`
-  }, false);
-}
-
 function renderSubgroupsList() {
   const listEl = document.getElementById("subgroups-list");
   const subgroups = (appStore && Array.isArray(appStore.subgroups)) ? appStore.subgroups : [];
@@ -882,32 +900,15 @@ function renderSubgroupsList() {
   listEl.innerHTML = subgroups.map(sg => {
     const stats = calculateSubgroupStats(sg.members);
     const safeName = sg.name.replace(/'/g, "");
-
-    const badgesHtml = SUBGROUP_BADGES.map(b => {
-      const unlocked = stats.best >= b.threshold;
-      const clickAttr = unlocked ? `onclick="previewSubgroupBadge('${safeName}', ${b.threshold})"` : "";
-      return `<span class="sg-badge ${unlocked ? "unlocked" : ""}" ${clickAttr} title="${b.title}">${b.icon} ${b.label}</span>`;
-    }).join("");
-
-    const bestHint = stats.best > stats.current
-      ? `<span class="sg-best-label">Rekord: ${stats.best}d</span>`
-      : "";
-
     return `
       <div class="subgroup-item">
-        <div class="subgroup-top">
-          <div>
-            <div class="sg-title">${sg.name}</div>
-            <div class="sg-members">${sg.members.join(" · ")}</div>
-          </div>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span class="sg-streak-pill">🤝 ${stats.current} ${stats.current === 1 ? "Tag" : "Tage"}</span>
-            <button type="button" class="btn-ghost" style="text-decoration:none; font-size:0.9rem;" onclick="deleteSubgroup('${sg.id}', '${safeName}')" title="Untergruppe löschen">✕</button>
-          </div>
+        <div>
+          <div class="sg-title">${sg.name}</div>
+          <div class="sg-members">${sg.members.join(" · ")}</div>
         </div>
-        <div class="sg-badges-row">
-          ${badgesHtml}
-          ${bestHint}
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="sg-streak-pill">🤝 ${stats.current} ${stats.current === 1 ? "Tag" : "Tage"}</span>
+          <button type="button" class="btn-ghost" style="text-decoration:none; font-size:0.9rem;" onclick="deleteSubgroup('${sg.id}', '${safeName}')" title="Untergruppe löschen">✕</button>
         </div>
       </div>
     `;
@@ -946,6 +947,7 @@ function showTeamView() {
   `).join("");
 
   // 2. Partner-Karten & Team-Gesamtfortschritt
+  const totalDefs = getMilestoneDefinitions(authSession.username).length;
   const cardsHtml = members.map(m => {
     const prof = m.username;
     const goals = m.goals;
@@ -999,7 +1001,7 @@ function showTeamView() {
 
         <div class="partner-stats">
           <span>Ø 7 Tage: <strong>${avg7Str}</strong>${delta7Str}</span>
-          <span>🏆 ${unlockedCount} / 9</span>
+          <span>🏆 ${unlockedCount} / ${totalDefs}</span>
         </div>
       </div>
     `;
@@ -1154,7 +1156,7 @@ function editEntry(date, weight) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-// --- TROPHÄEN & BELOHNUNGEN ---
+// --- PERSÖNLICHE TROPHÄEN & BELOHNUNGEN ---
 function renderTrophyShelf(prof) {
   const unlocked = new Set(getUnlockedRewards(prof));
   const defs = getMilestoneDefinitions(prof);
@@ -1179,10 +1181,11 @@ function previewReward(prof, rewardId) {
 }
 
 async function checkAndUnlockMilestones() {
-  if (!isOwnProfile()) return;
+  if (!authSession || !appStore) return;
   const prof = authSession.username;
   const streak = calculateStreak(prof);
   const pct = calculateProgressPct(prof);
+  const maxGroupStreak = getMaxUserGroupStreak(prof);
   const myData = getProfileData(prof);
   const unlocked = myData.rewards || [];
   const defs = getMilestoneDefinitions(prof);
@@ -1191,7 +1194,8 @@ async function checkAndUnlockMilestones() {
   for (const m of defs) {
     if (unlocked.includes(m.id)) continue;
     const hit = (m.type === "streak" && streak >= m.threshold) ||
-                (m.type === "pct" && pct >= m.threshold);
+                (m.type === "pct" && pct >= m.threshold) ||
+                (m.type === "group_streak" && maxGroupStreak >= m.threshold);
     if (hit) {
       unlocked.push(m.id);
       newlyUnlocked.push(m);
@@ -1201,7 +1205,9 @@ async function checkAndUnlockMilestones() {
   if (newlyUnlocked.length > 0) {
     myData.rewards = unlocked;
     localStorage.setItem("wt_app_store", JSON.stringify(appStore));
-    renderTrophyShelf(prof);
+    if (viewedProfile === prof) {
+      renderTrophyShelf(prof);
+    }
 
     rewardQueue.push(...newlyUnlocked);
     if (document.getElementById("reward-modal").classList.contains("hidden")) {
