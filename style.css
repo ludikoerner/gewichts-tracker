@@ -99,7 +99,7 @@ input:focus { outline: none; border-color: var(--primary); }
 
 .viewers-list { display: flex; flex-direction: column; gap: 8px; background: var(--input-bg); padding: 10px; border-radius: 10px; border: 1px solid var(--border); }
 
-/* Untergruppen */
+/* Untergruppen & Meilenstein-Badges */
 .small-add-btn {
   background: var(--primary);
   color: #fff;
@@ -118,14 +118,16 @@ input:focus { outline: none; border-color: var(--primary); }
   margin-bottom: 12px;
 }
 .subgroup-item {
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.subgroup-item:last-child { border-bottom: none; padding-bottom: 2px; }
+.subgroup-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 4px;
-  border-bottom: 1px solid var(--border);
   gap: 8px;
 }
-.subgroup-item:last-child { border-bottom: none; }
 .sg-title { font-weight: 800; font-size: 0.94rem; }
 .sg-members { font-size: 0.76rem; color: var(--muted); margin-top: 2px; }
 .sg-streak-pill {
@@ -138,7 +140,38 @@ input:focus { outline: none; border-color: var(--primary); }
   color: var(--primary);
   white-space: nowrap;
 }
-
+.sg-badges-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.sg-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--muted);
+  opacity: 0.45;
+  filter: grayscale(100%);
+  transition: 0.2s;
+}
+.sg-badge.unlocked {
+  opacity: 1;
+  filter: none;
+  background: var(--trophy-unlocked-bg);
+  border-color: var(--trophy-unlocked-border);
+  color: var(--primary);
+  cursor: pointer;
+}
+.sg-best-label {
+  font-size: 0.71rem;
+  color: var(--muted);
+  margin-left: auto;
+  align-self: center;
+}
 /* Schnell-Schritt-Steuerung (-0.1 / +0.1) */
 .stepper { display: flex; align-items: center; gap: 6px; }
 .step-btn { width: 42px; height: 42px; border-radius: 10px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); font-size: 1.25rem; font-weight: 700; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
