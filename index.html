@@ -7,26 +7,95 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Gewichts-Tracker</title>
-  <link rel="stylesheet" href="style.css?v=6" />
+  <link rel="stylesheet" href="style.css?v=7" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 </head>
 <body>
 
-  <!-- ENTSCHLACKTER HEADER -->
+  <!-- HEADER -->
   <header>
-    <h1>Gewichts-Tracker</h1>
-    <div class="sync-badge" id="sync-status">Bereit</div>
+    <div>
+      <h1>Gewichts-Tracker</h1>
+      <div class="sub hidden" id="logged-user-label">Angemeldet</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <div class="sync-badge" id="sync-status">Bereit</div>
+      <button class="icon-header-btn hidden" id="btn-privacy" onclick="openPrivacySettings()" title="Team & Privatsphäre">🛡️</button>
+      <button class="icon-header-btn hidden" id="btn-logout" onclick="logout()" title="Abmelden">🚪</button>
+    </div>
   </header>
 
-  <!-- 3-TAB UMSCHALTER (LUDWIG / HANNAH / GEMEINSAM) -->
-  <div class="profile-switch">
-    <button class="profile-btn active" id="tab-Ludwig" onclick="switchProfile('Ludwig')">Ludwig</button>
-    <button class="profile-btn" id="tab-Hannah" onclick="switchProfile('Hannah')">Hannah</button>
-    <button class="profile-btn" id="tab-Gemeinsam" onclick="switchProfile('Gemeinsam')">Gemeinsam</button>
+  <!-- AUTH ANSICHT (LOGIN / REGISTRIERUNG) -->
+  <div id="auth-view" class="hidden">
+    <div class="profile-switch" style="grid-template-columns: 1fr 1fr;">
+      <button class="profile-btn active" id="auth-tab-login" onclick="switchAuthMode('login')">Anmelden</button>
+      <button class="profile-btn" id="auth-tab-register" onclick="switchAuthMode('register')">Profil erstellen</button>
+    </div>
+
+    <div class="card">
+      <div id="auth-login-box">
+        <div style="font-weight:700; margin-bottom:12px;">Willkommen zurück</div>
+        <div style="margin-bottom:10px;">
+          <label>Profilname</label>
+          <input type="text" id="login-username" placeholder="z. B. Ludwig" autocomplete="username" />
+        </div>
+        <div style="margin-bottom:12px;">
+          <label>Passwort</label>
+          <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <button class="action-btn btn-primary" onclick="submitLogin()">Anmelden</button>
+      </div>
+
+      <div id="auth-register-box" class="hidden">
+        <div style="font-weight:700; margin-bottom:4px;">Neues Profil anlegen</div>
+        <div class="sub" style="margin-bottom:12px; font-size:0.78rem;">Bestehende Nutzer ohne Passwort können hier ihr Passwort festlegen.</div>
+        <div style="margin-bottom:10px;">
+          <label>Dein Name (ohne Leerzeichen)</label>
+          <input type="text" id="reg-username" placeholder="z. B. Max" />
+        </div>
+        <div style="margin-bottom:12px;">
+          <label>Passwort wählen</label>
+          <input type="password" id="reg-password" placeholder="Mind. 4 Zeichen" />
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="reg-share-team" checked />
+          <span>Daten im <strong>Team</strong> teilen (Zugriff auf Team-Reiter)</span>
+        </label>
+        <button class="action-btn btn-primary" onclick="submitRegister()">Profil speichern & starten</button>
+      </div>
+    </div>
   </div>
 
-  <!-- SETUP ANSICHT -->
+  <!-- PRIVATSPHÄRE & TEAM-EINSTELLUNGEN -->
+  <div id="privacy-view" class="hidden">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <strong style="font-size:1rem;">Team & Privatsphäre</strong>
+        <button class="btn-ghost" onclick="closePrivacySettings()">Schließen</button>
+      </div>
+
+      <label class="checkbox-row" style="margin-bottom:14px;">
+        <input type="checkbox" id="priv-share-team" />
+        <span><strong>Im Team teilen:</strong> Du erscheinst im Team-Reiter und kannst andere Teammitglieder ansehen.</span>
+      </label>
+
+      <div style="margin-bottom:12px;">
+        <label style="margin-bottom:6px;">Wer darf dein privates Profil zusätzlich sehen?</label>
+        <div id="priv-viewers-list" class="viewers-list"></div>
+      </div>
+
+      <button class="action-btn btn-primary" onclick="savePrivacySettings()">Einstellungen speichern</button>
+    </div>
+  </div>
+
+  <!-- HAUPTNAVIGATION (EIGENES PROFIL / TEAM) -->
+  <div id="main-nav" class="profile-switch hidden">
+    <button class="profile-btn active" id="tab-mine" onclick="switchMainTab('mine')">Mein Profil</button>
+    <button class="profile-btn" id="tab-team" onclick="switchMainTab('team')">Team</button>
+  </div>
+
+  <!-- SETUP ANSICHT (NUR EIGENES PROFIL) -->
   <div id="setup-view" class="hidden">
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -55,10 +124,19 @@
     </div>
   </div>
 
-  <!-- EINZELPROFIL ANSICHT (LUDWIG / HANNAH) -->
+  <!-- PROFIL-ANSICHT (EIGENES ODER FREMDES PROFIL IM NUR-LESE-MODUS) -->
   <div id="app-view" class="hidden">
-    <!-- EINGABE-KACHEL -->
-    <div class="card">
+    <!-- BANNER FÜR FREMDES PROFIL (NUR-LESE-MODUS) -->
+    <div id="readonly-banner" class="readonly-banner hidden">
+      <div>
+        <strong id="readonly-name">Profil von --</strong>
+        <div style="font-size:0.75rem; opacity:0.85;">Nur-Lese-Ansicht</div>
+      </div>
+      <button type="button" class="readonly-back-btn" onclick="viewOwnProfile()">← Zu mir</button>
+    </div>
+
+    <!-- EINGABE-KACHEL (NUR BEI EIGENEM PROFIL SICHTBAR) -->
+    <div class="card" id="entry-input-card">
       <div class="grid-2">
         <div>
           <label>Datum</label>
@@ -99,14 +177,14 @@
       <div class="stat-tile">
         <div class="tile-header-row">
           <span class="tile-label">Zielgewicht</span>
-          <button type="button" class="icon-edit-btn" onclick="openSetup()" title="Ziele ändern">⚙️</button>
+          <button type="button" class="icon-edit-btn" id="btn-edit-goals" onclick="openSetup()" title="Ziele ändern">⚙️</button>
         </div>
         <div class="tile-main" id="st-goal">--</div>
         <div class="tile-sub" id="st-goal-date">bis --</div>
       </div>
     </div>
 
-    <!-- FORTSCHRITTS-KACHEL (VOLLE BREITE) -->
+    <!-- FORTSCHRITTS-KACHEL -->
     <div class="card progress-card">
       <div class="progress-labels">
         <span id="prog-pct">0 % geschafft</span>
@@ -145,28 +223,36 @@
       </div>
       <div class="trophy-grid" id="trophy-grid"></div>
     </div>
+
+    <!-- DIREKTZUGRIFF AUF FREIGEGEBENE PRIVATE PROFILE (FALLS VORHANDEN) -->
+    <div id="shared-private-box" class="card hidden">
+      <div style="font-weight:700; font-size:0.9rem; margin-bottom:8px;">Für dich freigegebene Profile</div>
+      <div id="shared-private-list" class="shared-pills"></div>
+    </div>
   </div>
 
-  <!-- TEAM-ANSICHT (GEMEINSAM) -->
+  <!-- TEAM-ANSICHT -->
   <div id="team-view" class="hidden">
-    <!-- 2er-HERO-GRID: GEMEINSAMER FORTSCHRITT + TEAM-STREAK -->
-    <div class="stat-grid" style="margin-bottom: 14px;">
-      <div class="stat-tile team-stat-card">
-        <div class="tile-label">Team-Fortschritt</div>
-        <div class="team-pct-big" id="team-total-pct">0 %</div>
-        <div class="progress-track" style="height:8px; margin-top:6px;">
-          <div class="progress-fill team-fill" id="team-total-fill" style="width: 0%;"></div>
-        </div>
-      </div>
-
-      <div class="stat-tile team-stat-card">
-        <div class="tile-label">Team-Streak</div>
-        <div class="team-streak-big" id="team-streak-val">🤝 0 Tage</div>
-        <div class="tile-sub" id="team-streak-sub">Beide am selben Tag</div>
+    <!-- GEMEINSAMER TEAM-FORTSCHRITT -->
+    <div class="card" style="text-align:center; padding:18px 16px;">
+      <div class="tile-label">TEAM-FORTSCHRITT</div>
+      <div class="team-pct-big" id="team-total-pct">0 %</div>
+      <div class="sub" style="margin-bottom:10px;" id="team-member-count">0 Teammitglieder</div>
+      <div class="progress-track" style="height:11px;">
+        <div class="progress-fill team-fill" id="team-total-fill" style="width: 0%;"></div>
       </div>
     </div>
 
-    <!-- GEMEINSAME TEAM-FORTSCHRITTSKURVE (0% - 100%) -->
+    <!-- STREAK-RANKING -->
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <strong style="font-size:0.95rem;">🔥 Streak-Ranking</strong>
+        <span class="sub" style="font-size:0.75rem;">Längste aktive Serie</span>
+      </div>
+      <div id="team-ranking-list"></div>
+    </div>
+
+    <!-- GEMEINSAME TEAM-FORTSCHRITTSKURVE -->
     <div class="card">
       <div class="chart-header">
         <strong style="font-size:0.95rem;">Gemeinsamer Weg (%)</strong>
@@ -175,7 +261,8 @@
       <canvas id="teamChart"></canvas>
     </div>
 
-    <!-- PARTNER-KARTEN -->
+    <!-- TEAMMITGLIEDER (ANKLICKBAR FÜR NUR-LESE-PROFIL) -->
+    <div style="font-weight:700; font-size:0.85rem; color:var(--muted); margin: 4px 2px 8px 2px;">TEAMMITGLIEDER (ANTIPPEN FÜR PROFIL)</div>
     <div id="team-cards-container"></div>
   </div>
 
@@ -192,6 +279,6 @@
   </div>
 
   <script src="config.js"></script>
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>
