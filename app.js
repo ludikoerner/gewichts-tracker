@@ -110,7 +110,7 @@ function getMilestoneDefinitions(prof) {
       text: `Stark, ${prof}! Du hast mit einer Gruppe 5 Tage in Folge gemeinsam durchgezogen.`
     },
     {
-      id: "group_streak_10", type: "group_streak", threshold: 10, shelfIcon: "🤜🤛", shelfLabel: "Team 10d",
+      id: "group_streak_10", type: "group_streak", threshold: 10, shelfIcon: "💪", shelfLabel: "Team 10d",
       tag: "GRUPPEN-STREAK · 10 TAGE", modalIcon: "🤜🤛", title: "10 Tage im Gleichschritt!",
       text: `Zweistellig im Team! Du hast mit einer Gruppe 10 Tage lückenlos gemeinsam gewogen.`
     },
