@@ -99,7 +99,7 @@ input:focus { outline: none; border-color: var(--primary); }
 
 .viewers-list { display: flex; flex-direction: column; gap: 8px; background: var(--input-bg); padding: 10px; border-radius: 10px; border: 1px solid var(--border); }
 
-/* Untergruppen & Meilenstein-Badges */
+/* Untergruppen */
 .small-add-btn {
   background: var(--primary);
   color: #fff;
@@ -118,16 +118,14 @@ input:focus { outline: none; border-color: var(--primary); }
   margin-bottom: 12px;
 }
 .subgroup-item {
-  padding: 12px 4px;
-  border-bottom: 1px solid var(--border);
-}
-.subgroup-item:last-child { border-bottom: none; padding-bottom: 2px; }
-.subgroup-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border);
   gap: 8px;
 }
+.subgroup-item:last-child { border-bottom: none; padding-bottom: 2px; }
 .sg-title { font-weight: 800; font-size: 0.94rem; }
 .sg-members { font-size: 0.76rem; color: var(--muted); margin-top: 2px; }
 .sg-streak-pill {
@@ -140,38 +138,7 @@ input:focus { outline: none; border-color: var(--primary); }
   color: var(--primary);
   white-space: nowrap;
 }
-.sg-badges-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-.sg-badge {
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 99px;
-  border: 1px solid var(--border);
-  background: var(--input-bg);
-  color: var(--muted);
-  opacity: 0.45;
-  filter: grayscale(100%);
-  transition: 0.2s;
-}
-.sg-badge.unlocked {
-  opacity: 1;
-  filter: none;
-  background: var(--trophy-unlocked-bg);
-  border-color: var(--trophy-unlocked-border);
-  color: var(--primary);
-  cursor: pointer;
-}
-.sg-best-label {
-  font-size: 0.71rem;
-  color: var(--muted);
-  margin-left: auto;
-  align-self: center;
-}
+
 /* Schnell-Schritt-Steuerung (-0.1 / +0.1) */
 .stepper { display: flex; align-items: center; gap: 6px; }
 .step-btn { width: 42px; height: 42px; border-radius: 10px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); font-size: 1.25rem; font-weight: 700; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
@@ -184,7 +151,7 @@ button.action-btn { border: none; border-radius: 10px; padding: 12px; font-size:
 .btn-ghost { background: transparent; color: var(--muted); font-size: 0.8rem; padding: 4px 6px; text-decoration: underline; border: none; cursor: pointer; }
 .btn-danger { background: var(--danger-bg); color: var(--danger-text); padding: 6px 10px; font-size: 0.8rem; border-radius: 8px; border: none; cursor: pointer; }
 
-/* 2x2 Statistik-Kacheln */
+/* Statistik-Kacheln (2x2 im Hochformat) */
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
 .stat-tile {
   background: var(--card);
@@ -228,21 +195,24 @@ button.action-btn { border: none; border-radius: 10px; padding: 12px; font-size:
 .progress-fill.bad { background: #dc2626; }
 .progress-fill.team-fill { background: linear-gradient(90deg, #2563eb, #8b5cf6, #ec4899); }
 
-/* Team & Streak-Ranking */
+/* Team & Kombinierte Mitglieder-Karten */
 .team-pct-big { font-size: 2rem; font-weight: 900; color: var(--primary); line-height: 1.15; margin: 4px 0 2px 0; }
-.rank-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 4px; border-bottom: 1px solid var(--border);
+.team-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 4px 2px 10px 2px;
 }
-.rank-row:last-child { border-bottom: none; }
-.rank-left { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.92rem; }
-.rank-medal { font-size: 1.15rem; width: 24px; text-align: center; }
+.team-section-title { font-weight: 700; font-size: 0.85rem; color: var(--muted); letter-spacing: 0.03em; }
+.team-cards-grid { display: grid; grid-template-columns: 1fr; }
+.team-cards-grid .card { margin-bottom: 12px; }
 
 .partner-card { cursor: pointer; transition: transform 0.15s; }
 .partner-card:active { transform: scale(0.99); }
-.partner-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.partner-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 6px; }
 .partner-name { font-size: 1.05rem; font-weight: 800; display: flex; align-items: center; gap: 6px; }
-.today-badge { font-size: 0.74rem; font-weight: 700; padding: 3px 8px; border-radius: 99px; }
+.rank-badge { font-size: 1.05rem; font-weight: 800; min-width: 22px; text-align: center; color: var(--muted); }
+.today-badge { font-size: 0.74rem; font-weight: 700; padding: 3px 8px; border-radius: 99px; white-space: nowrap; }
 .today-done { background: var(--good-bg); color: var(--good-text); }
 .today-open { background: var(--switch-bg); color: var(--muted); }
 .partner-stats { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--muted); margin-top: 8px; }
@@ -253,7 +223,7 @@ button.action-btn { border: none; border-radius: 10px; padding: 12px; font-size:
   border-radius: 99px; padding: 6px 12px; font-size: 0.82rem; font-weight: 700; cursor: pointer;
 }
 
-/* Zoom Umschalter */
+/* Zoom & Sortier Umschalter */
 .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .zoom-switch { display: inline-flex; background: var(--switch-bg); padding: 3px; border-radius: 8px; }
 .zoom-btn { padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; color: var(--switch-text); background: transparent; border: none; cursor: pointer; }
@@ -310,3 +280,35 @@ button.action-btn { border: none; border-radius: 10px; padding: 12px; font-size:
 .hist-item:last-child { border-bottom: none; }
 .hidden { display: none !important; }
 canvas { width: 100% !important; height: 270px !important; }
+
+/* QUERFORMAT (LANDSCAPE) ANPASSUNGEN */
+@media (orientation: landscape) and (min-width: 560px) {
+  body {
+    max-width: 920px;
+    padding: 14px 20px;
+  }
+  /* Alle 4 Statistik-Kacheln nebeneinander (1x4) */
+  .stat-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .tile-main {
+    font-size: 1.05rem;
+  }
+  /* Graph behält volle Breite und bekommt angenehme Höhe */
+  canvas {
+    height: 290px !important;
+  }
+  /* Trophäen-Regal als 7er-Reihe (7x2) */
+  .trophy-grid {
+    grid-template-columns: repeat(7, 1fr);
+  }
+  /* Teammitglieder-Karten 2-spaltig nebeneinander */
+  .team-cards-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .team-cards-grid .card {
+    margin-bottom: 0;
+  }
+}
