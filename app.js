@@ -26,8 +26,9 @@ let authSession = JSON.parse(localStorage.getItem("wt_auth_session") || "null");
 let appStore = JSON.parse(localStorage.getItem("wt_app_store") || "null"); // { me, allUsernames, profiles, subgroups }
 let activeMainTab = "mine"; // "mine" | "team"
 let viewedProfile = null;   // Derzeit betrachtetes Profil (eigenes oder fremdes)
-let openedFromTeam = false; // Merkt, ob ein fremdes Profil aus dem Team geöffnet wurde
+let openedFromTeam = false; // Steuert, ob das fremde Profil im Team-Modus geöffnet ist
 let chartZoom = localStorage.getItem("wt_chart_zoom") || "all";
+let teamSortBy = localStorage.getItem("wt_team_sort") || "streak"; // "streak" | "progress"
 let chartInstance = null;
 let teamChartInstance = null;
 let rewardQueue = [];
@@ -50,7 +51,7 @@ function setSyncBadge(text, isOk = false) {
   el.className = isOk ? "sync-badge sync-ok" : "sync-badge";
 }
 
-// --- PERSÖNLICHE MEILENSTEIN-DEFINITIONEN (INKL. GRUPPEN-STREAK-ABZEICHEN) ---
+// --- PERSÖNLICHE MEILENSTEIN-DEFINITIONEN ---
 function getMilestoneDefinitions(prof) {
   const isHannah = prof === "Hannah";
   return [
@@ -316,7 +317,6 @@ function calculateStreak(prof) {
   return streak;
 }
 
-// Strenge Streak einer Untergruppe (aktuell & Rekord)
 function calculateSubgroupStats(memberNames) {
   if (!Array.isArray(memberNames) || memberNames.length === 0) {
     return { current: 0, best: 0 };
@@ -363,7 +363,6 @@ function calculateSubgroupStats(memberNames) {
   return { current, best: Math.max(best, current) };
 }
 
-// Höchste jemals erreichte Gruppen-Streak des Nutzers über alle seine Untergruppen hinweg
 function getMaxUserGroupStreak(prof) {
   if (!appStore || !Array.isArray(appStore.subgroups)) return 0;
   let maxBest = 0;
@@ -420,6 +419,7 @@ function enterAuthenticatedApp() {
 
 function updateHeaderState() {
   const own = isOwnProfile();
+  const canAccessTeam = Boolean(appStore && appStore.me && appStore.me.shareTeam);
   const backBtn = document.getElementById("btn-header-back");
   const titleEl = document.getElementById("header-title");
   const subEl = document.getElementById("logged-user-label");
@@ -431,7 +431,7 @@ function updateHeaderState() {
     subEl.innerText = `Hallo, ${authSession.username}`;
   } else {
     backBtn.classList.remove("hidden");
-    backBtn.innerText = openedFromTeam ? "← Team" : `← ${authSession.username}`;
+    backBtn.innerText = (openedFromTeam && canAccessTeam) ? "← Team" : `← ${authSession.username}`;
     titleEl.innerText = `Profil: ${viewedProfile}`;
     subEl.classList.remove("hidden");
     subEl.innerText = "Nur-Lese-Ansicht";
@@ -451,7 +451,8 @@ function refreshCurrentScreen() {
     ? `${authSession.username} <span class="streak-pill">🔥 ${myStreak}</span>`
     : authSession.username;
 
-  const teamTabShouldBeActive = (activeMainTab === "team") || (!isOwnProfile() && openedFromTeam);
+  // Wenn ein fremdes Profil geöffnet ist, bleibt der Team-Tab aktiv (falls sichtbar)
+  const teamTabShouldBeActive = canAccessTeam && ((activeMainTab === "team") || (!isOwnProfile() && openedFromTeam));
   mineBtn.classList.toggle("active", !teamTabShouldBeActive);
   document.getElementById("tab-team").classList.toggle("active", teamTabShouldBeActive);
 
@@ -480,8 +481,9 @@ function switchMainTab(tab) {
 }
 
 function backFromOtherProfile() {
+  const canAccessTeam = Boolean(appStore && appStore.me && appStore.me.shareTeam);
   viewedProfile = authSession.username;
-  if (openedFromTeam) {
+  if (openedFromTeam && canAccessTeam) {
     activeMainTab = "team";
   } else {
     activeMainTab = "mine";
@@ -490,9 +492,10 @@ function backFromOtherProfile() {
   refreshCurrentScreen();
 }
 
-function openOtherProfile(username, fromTeam = false) {
+// Öffnet ein anderes Profil immer im Team-Modus
+function openOtherProfile(username) {
   viewedProfile = username;
-  openedFromTeam = fromTeam;
+  openedFromTeam = true;
   activeMainTab = "mine";
   refreshCurrentScreen();
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -622,7 +625,7 @@ function showProfileView(prof) {
     if (otherVisible.length > 0) {
       sharedBox.classList.remove("hidden");
       document.getElementById("shared-private-list").innerHTML = otherVisible.map(u => `
-        <button type="button" class="shared-pill-btn" onclick="openOtherProfile('${u}', false)">👁️ ${u}</button>
+        <button type="button" class="shared-pill-btn" onclick="openOtherProfile('${u}')">👁️ ${u}</button>
       `).join("");
     } else {
       sharedBox.classList.add("hidden");
@@ -822,6 +825,16 @@ function getTeamMembers() {
   return Object.values(appStore.profiles).filter(p => p.shareTeam);
 }
 
+function setTeamSort(mode) {
+  teamSortBy = mode;
+  localStorage.setItem("wt_team_sort", mode);
+  document.getElementById("sort-streak").classList.toggle("active", mode === "streak");
+  document.getElementById("sort-progress").classList.toggle("active", mode === "progress");
+  if (activeMainTab === "team") {
+    showTeamView();
+  }
+}
+
 function toggleSubgroupCreator() {
   const box = document.getElementById("subgroup-creator");
   const isOpening = box.classList.contains("hidden");
@@ -920,6 +933,9 @@ function showTeamView() {
   document.getElementById("app-view").classList.add("hidden");
   document.getElementById("team-view").classList.remove("hidden");
 
+  document.getElementById("sort-streak").classList.toggle("active", teamSortBy === "streak");
+  document.getElementById("sort-progress").classList.toggle("active", teamSortBy === "progress");
+
   renderSubgroupsList();
 
   const members = getTeamMembers();
@@ -928,38 +944,32 @@ function showTeamView() {
   let sumPct = 0;
   let activeGoalsCount = 0;
 
-  // 1. Einzel-Streak-Ranking berechnen
-  const ranked = members.map(m => ({
-    username: m.username,
-    streak: calculateStreak(m.username),
-    pct: calculateProgressPct(m.username)
-  })).sort((a, b) => b.streak - a.streak || b.pct - a.pct);
-
-  const medals = ["🥇", "🥈", "🥉"];
-  document.getElementById("team-ranking-list").innerHTML = ranked.map((r, idx) => `
-    <div class="rank-row" onclick="openOtherProfile('${r.username}', true)" style="cursor:pointer;">
-      <div class="rank-left">
-        <span class="rank-medal">${medals[idx] || `${idx + 1}.`}</span>
-        <span>${r.username}</span>
-      </div>
-      <span class="streak-pill" style="font-size:0.8rem;">🔥 ${r.streak} ${r.streak === 1 ? "Tag" : "Tage"}</span>
-    </div>
-  `).join("");
-
-  // 2. Partner-Karten & Team-Gesamtfortschritt
-  const totalDefs = getMilestoneDefinitions(authSession.username).length;
-  const cardsHtml = members.map(m => {
+  // Daten für alle Mitglieder vorbereiten und nach gewähltem Kriterium sortieren
+  const enrichedMembers = members.map(m => {
     const prof = m.username;
-    const goals = m.goals;
-    const entries = m.entries || [];
     const streak = calculateStreak(prof);
     const rawPct = calculateProgressPct(prof);
     const clampedPct = Math.max(0, Math.min(100, rawPct));
-
-    if (goals) {
+    if (m.goals) {
       sumPct += clampedPct;
       activeGoalsCount++;
     }
+    return { member: m, prof, streak, rawPct, clampedPct };
+  }).sort((a, b) => {
+    if (teamSortBy === "progress") {
+      return b.rawPct - a.rawPct || b.streak - a.streak;
+    }
+    return b.streak - a.streak || b.rawPct - a.rawPct;
+  });
+
+  const totalDefs = getMilestoneDefinitions(authSession.username).length;
+  const medals = ["🥇", "🥈", "🥉"];
+
+  const cardsHtml = enrichedMembers.map((item, idx) => {
+    const { member: m, prof, streak, rawPct, clampedPct } = item;
+    const goals = m.goals;
+    const entries = m.entries || [];
+    const rankIcon = medals[idx] || `${idx + 1}.`;
 
     const weighedToday = entries.some(e => e.date === today);
     const comp = calculate7DayComparison(prof);
@@ -980,11 +990,12 @@ function showTeamView() {
     const unlockedCount = (m.rewards || []).length;
 
     return `
-      <div class="card partner-card" onclick="openOtherProfile('${prof}', true)">
+      <div class="card partner-card" onclick="openOtherProfile('${prof}')">
         <div class="partner-header">
           <div class="partner-name">
+            <span class="rank-badge">${rankIcon}</span>
             <span>${prof}</span>
-            ${streak >= 5 ? `<span class="streak-pill">🔥 ${streak}</span>` : ""}
+            <span class="streak-pill">🔥 ${streak}</span>
           </div>
           <span class="today-badge ${weighedToday ? "today-done" : "today-open"}">
             ${weighedToday ? "✅ Heute gewogen" : "⏳ Heute offen"}
