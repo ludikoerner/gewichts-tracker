@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Gewichts-Tracker</title>
-  <link rel="stylesheet" href="style.css?v=10" />
+  <link rel="stylesheet" href="style.css?v=11" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 </head>
@@ -148,7 +148,7 @@
       <button class="action-btn btn-primary" onclick="addEntry()">Speichern</button>
     </div>
 
-    <!-- 2x2 STATISTIK-KACHELN -->
+    <!-- STATISTIK-KACHELN (2x2 HOCHFORMAT / 1x4 QUERFORMAT) -->
     <div class="stat-grid">
       <div id="tile-status" class="stat-tile status-good">
         <div class="tile-label">Soll-Abweichung</div>
@@ -189,7 +189,7 @@
       </div>
     </div>
 
-    <!-- VERLAUFS-GRAPH -->
+    <!-- VERLAUFS-GRAPH (BEHÄLT IMMER VOLLE BREITE) -->
     <div class="card">
       <div class="chart-header">
         <strong style="font-size:0.95rem;">Verlauf</strong>
@@ -218,7 +218,7 @@
       <div class="trophy-grid" id="trophy-grid"></div>
     </div>
 
-    <!-- DIREKTZUGRIFF AUF FREIGEGEBENE PRIVATE PROFILE (FALLS VORHANDEN) -->
+    <!-- DIREKTZUGRIFF AUF FREIGEGEBENE PRIVATE PROFILE (WECHSELT IN TEAM-MODUS) -->
     <div id="shared-private-box" class="card hidden">
       <div style="font-weight:700; font-size:0.9rem; margin-bottom:8px;">Für dich freigegebene Profile</div>
       <div id="shared-private-list" class="shared-pills"></div>
@@ -237,10 +237,10 @@
       </div>
     </div>
 
-    <!-- UNTERGRUPPEN (STRENGE STREAK) -->
+    <!-- UNTERGRUPPEN -->
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <strong style="font-size:0.95rem;">🤝 Untergruppen (Strenge Streak)</strong>
+        <strong style="font-size:0.95rem;">🤝 Untergruppen</strong>
         <button type="button" class="small-add-btn" onclick="toggleSubgroupCreator()">+ Neu</button>
       </div>
 
@@ -263,16 +263,7 @@
       <div id="subgroups-list"></div>
     </div>
 
-    <!-- STREAK-RANKING -->
-    <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <strong style="font-size:0.95rem;">🔥 Einzel-Streak-Ranking</strong>
-        <span class="sub" style="font-size:0.75rem;">Längste aktive Serie</span>
-      </div>
-      <div id="team-ranking-list"></div>
-    </div>
-
-    <!-- GEMEINSAME TEAM-FORTSCHRITTSKURVE -->
+    <!-- GEMEINSAME TEAM-FORTSCHRITTSKURVE (BEHÄLT IMMER VOLLE BREITE) -->
     <div class="card">
       <div class="chart-header">
         <strong style="font-size:0.95rem;">Gemeinsamer Weg (%)</strong>
@@ -281,9 +272,15 @@
       <canvas id="teamChart"></canvas>
     </div>
 
-    <!-- TEAMMITGLIEDER (ANKLICKBAR FÜR NUR-LESE-PROFIL) -->
-    <div style="font-weight:700; font-size:0.85rem; color:var(--muted); margin: 4px 2px 8px 2px;">TEAMMITGLIEDER (ANTIPPEN FÜR PROFIL)</div>
-    <div id="team-cards-container"></div>
+    <!-- KOMBINIERTE TEAMMITGLIEDER-LISTE MIT SORTIER-UMSCHALTER -->
+    <div class="team-list-header">
+      <span class="team-section-title">TEAMMITGLIEDER</span>
+      <div class="zoom-switch">
+        <button type="button" class="zoom-btn active" id="sort-streak" onclick="setTeamSort('streak')">Streak</button>
+        <button type="button" class="zoom-btn" id="sort-progress" onclick="setTeamSort('progress')">Fortschritt</button>
+      </div>
+    </div>
+    <div id="team-cards-container" class="team-cards-grid"></div>
   </div>
 
   <!-- BELOHNUNGS-POP-UP MODAL -->
@@ -299,6 +296,6 @@
   </div>
 
   <script src="config.js"></script>
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>
