@@ -1,4 +1,4 @@
-const CACHE_NAME = "wt-cache-v17";
+const CACHE_NAME = "wt-cache-v18";
 const APP_ASSETS = [
   "./",
   "./index.html",
