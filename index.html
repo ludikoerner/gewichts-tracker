@@ -7,13 +7,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Gewichts-Tracker</title>
-  <link rel="stylesheet" href="style.css?v=12" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="stylesheet" href="style.css?v=15" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns" defer></script>
 </head>
 <body>
 
-  <!-- HEADER (MIT ZURÜCK-BUTTON BEI FREMDEN PROFILEN) -->
+  <!-- HEADER (MIT ZURÜCK-BUTTON UND KLICKBAREM SYNC-BADGE) -->
   <header>
     <div style="display:flex; align-items:center; gap:10px;">
       <button class="header-back-btn hidden" id="btn-header-back" onclick="backFromOtherProfile()">← Team</button>
@@ -23,7 +26,7 @@
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:8px;">
-      <div class="sync-badge" id="sync-status">Bereit</div>
+      <button type="button" class="sync-badge" id="sync-status" onclick="manualSync()" title="Jetzt synchronisieren">Bereit</button>
       <button class="icon-header-btn hidden" id="btn-privacy" onclick="openPrivacySettings()" title="Team & Privatsphäre">🛡️</button>
       <button class="icon-header-btn hidden" id="btn-logout" onclick="logout()" title="Abmelden">🚪</button>
     </div>
@@ -111,7 +114,6 @@
         <button type="button" class="profile-btn" id="mode-btn-hold" onclick="setSetupMode('hold')">Gewicht halten (±1 kg)</button>
       </div>
 
-      <!-- FELDER FÜR ZIEL VERFOLGEN -->
       <div id="setup-fields-goal" class="grid-2">
         <div>
           <label>Startdatum</label>
@@ -131,7 +133,6 @@
         </div>
       </div>
 
-      <!-- FELDER FÜR GEWICHT HALTEN -->
       <div id="setup-fields-hold" class="hidden">
         <div style="margin-bottom:8px;">
           <label>Haltegewicht (kg) · Toleranz ± 1,0 kg</label>
@@ -167,7 +168,7 @@
       <button class="action-btn btn-primary" onclick="addEntry()">Speichern</button>
     </div>
 
-    <!-- STATISTIK-KACHELN (2x2 HOCHFORMAT / 1x4 QUERFORMAT) -->
+    <!-- STATISTIK-KACHELN -->
     <div class="stat-grid">
       <div id="tile-status" class="stat-tile status-good">
         <div class="tile-label">Soll-Abweichung</div>
@@ -249,7 +250,6 @@
 
   <!-- TEAM-ANSICHT -->
   <div id="team-view" class="hidden">
-    <!-- GEMEINSAMER TEAM-FORTSCHRITT -->
     <div class="card" style="text-align:center; padding:18px 16px;">
       <div class="tile-label">TEAM-FORTSCHRITT</div>
       <div class="team-pct-big" id="team-total-pct">0 %</div>
@@ -284,7 +284,7 @@
       <div id="subgroups-list"></div>
     </div>
 
-    <!-- GEMEINSAME TEAM-FORTSCHRITTSKURVE MIT 30-TAGE-REITER -->
+    <!-- GEMEINSAME TEAM-FORTSCHRITTSKURVE -->
     <div class="card">
       <div class="chart-header">
         <strong style="font-size:0.95rem;">Gemeinsamer Weg (%)</strong>
@@ -296,7 +296,7 @@
       <canvas id="teamChart"></canvas>
     </div>
 
-    <!-- KOMBINIERTE TEAMMITGLIEDER-LISTE MIT SORTIER-UMSCHALTER -->
+    <!-- KOMBINIERTE TEAMMITGLIEDER-LISTE -->
     <div class="team-list-header">
       <span class="team-section-title">TEAMMITGLIEDER</span>
       <div class="zoom-switch">
@@ -320,6 +320,6 @@
   </div>
 
   <script src="config.js"></script>
-  <script src="app.js?v=14"></script>
+  <script type="module" src="js/main.js?v=15"></script>
 </body>
 </html>
