@@ -92,24 +92,77 @@ export function getMilestoneDefinitions(prof) {
   ];
 }
 
-export function renderTrophyShelf(prof) {
-  const unlocked = new Set(getUnlockedRewards(prof));
-  const defs = getMilestoneDefinitions(prof);
-  const unlockedCount = defs.filter((d) => unlocked.has(d.id)).length;
-
-  document.getElementById("trophy-count").innerText = `${unlockedCount} / ${defs.length}`;
-  document.getElementById("trophy-grid").innerHTML = defs
+function renderTrophyItemsHTML(prof, defs, unlocked) {
+  return defs
     .map((m) => {
       const isUnlocked = unlocked.has(m.id);
       const clickAttr = isUnlocked ? `onclick="previewReward('${prof}', '${m.id}')"` : "";
+      const subText = isUnlocked ? "Freigeschaltet" : "Gesperrt";
       return `
         <div class="trophy-item ${isUnlocked ? "unlocked" : ""}" ${clickAttr} title="${m.title}">
           <div class="trophy-icon">${m.shelfIcon}</div>
           <div class="trophy-label">${m.shelfLabel}</div>
+          <div class="trophy-sub">${subText}</div>
         </div>
       `;
     })
     .join("");
+}
+
+export function renderTrophyShelf(prof, gridId = "trophy-grid", countId = "trophy-count") {
+  const unlocked = new Set(getUnlockedRewards(prof));
+  const defs = getMilestoneDefinitions(prof);
+  const unlockedCount = defs.filter((d) => unlocked.has(d.id)).length;
+
+  const countEl = document.getElementById(countId);
+  if (countEl) countEl.innerText = `${unlockedCount} / ${defs.length}`;
+
+  const gridEl = document.getElementById(gridId);
+  if (gridEl) gridEl.innerHTML = renderTrophyItemsHTML(prof, defs, unlocked);
+
+  // Nächster Meilenstein im eigenen Trophäen-Reiter berechnen
+  if (gridId === "trophy-grid") {
+    const titleEl = document.getElementById("next-trophy-title");
+    const fillEl = document.getElementById("next-trophy-fill");
+    const subEl = document.getElementById("next-trophy-sub");
+    if (!titleEl || !fillEl || !subEl) return;
+
+    const streak = calculateStreak(prof);
+    const pct = Math.max(0, calculateProgressPct(prof));
+    const groupStreak = getMaxUserGroupStreak(prof);
+
+    let bestCandidate = null;
+    for (const m of defs) {
+      if (unlocked.has(m.id)) continue;
+      let currVal = 0;
+      let unit = "";
+      if (m.type === "streak") {
+        currVal = streak;
+        unit = "Tage";
+      } else if (m.type === "pct") {
+        currVal = Math.round(pct);
+        unit = "%";
+      } else if (m.type === "group_streak") {
+        currVal = groupStreak;
+        unit = "Team-Tage";
+      }
+      const ratio = Math.min(0.99, currVal / m.threshold);
+      if (!bestCandidate || ratio > bestCandidate.ratio) {
+        bestCandidate = { milestone: m, currVal, unit, ratio };
+      }
+    }
+
+    if (bestCandidate) {
+      const { milestone, currVal, unit, ratio } = bestCandidate;
+      titleEl.innerText = `Nächstes Ziel: ${milestone.shelfIcon} ${milestone.shelfLabel}`;
+      fillEl.style.width = `${Math.round(ratio * 100)}%`;
+      subEl.innerText = `Aktuell ${currVal} von ${milestone.threshold} ${unit}`;
+    } else {
+      titleEl.innerText = "Alle Meilensteine erreicht! 👑";
+      fillEl.style.width = "100%";
+      subEl.innerText = "Du hast sämtliche Trophäen freigeschaltet.";
+    }
+  }
 }
 
 export function previewReward(prof, rewardId) {
@@ -146,7 +199,7 @@ export async function checkAndUnlockMilestones() {
   if (newlyUnlocked.length > 0) {
     myData.rewards = unlocked;
     persistStore();
-    if (state.viewedProfile === prof) {
+    if (state.activeMainTab === "trophies") {
       renderTrophyShelf(prof);
     }
 
