@@ -3,6 +3,9 @@ import { registerSyncHooks, syncAllFromCloud, manualSync } from "./api.js";
 import { setZoom, setTeamZoom, renderWeightChart, renderTeamChart } from "./charts.js";
 import { previewReward, closeRewardModal, checkAndUnlockMilestones } from "./milestones.js";
 import {
+  openWeightSheet,
+  closeWeightSheet,
+  toggleShowAllHistory,
   switchAuthMode,
   submitLogin,
   submitRegister,
@@ -33,6 +36,9 @@ import {
 
 // Alle HTML-Event-Handler global verfügbar machen
 Object.assign(window, {
+  openWeightSheet,
+  closeWeightSheet,
+  toggleShowAllHistory,
   backFromOtherProfile,
   manualSync,
   openPrivacySettings,
@@ -63,7 +69,6 @@ Object.assign(window, {
   previewReward
 });
 
-// Sync-Callbacks verknüpfen
 registerSyncHooks({
   onSyncComplete: async () => {
     refreshCurrentScreen();
@@ -74,7 +79,6 @@ registerSyncHooks({
   }
 });
 
-// Tastatur-Komfort (Enter zum Absenden / Weitergehen, Escape zum Schließen)
 function bindKeyboardShortcuts() {
   const onEnter = (id, fn) => {
     const el = document.getElementById(id);
@@ -102,6 +106,11 @@ function bindKeyboardShortcuts() {
 
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
+    const sheet = document.getElementById("weight-sheet-backdrop");
+    if (sheet && !sheet.classList.contains("hidden")) {
+      closeWeightSheet();
+      return;
+    }
     const modal = document.getElementById("reward-modal");
     if (modal && !modal.classList.contains("hidden")) {
       closeRewardModal();
@@ -119,7 +128,6 @@ function bindKeyboardShortcuts() {
   });
 }
 
-// Service Worker für Offline-Caching & Sofortstart registrieren
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
@@ -137,7 +145,7 @@ document.addEventListener("visibilitychange", () => {
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
   if (!state.authSession) return;
   if (state.activeMainTab === "team") renderTeamChart();
-  else if (state.viewedProfile) renderWeightChart(state.viewedProfile);
+  else if (state.activeMainTab === "verlauf" && state.viewedProfile) renderWeightChart(state.viewedProfile);
 });
 
 async function init() {
