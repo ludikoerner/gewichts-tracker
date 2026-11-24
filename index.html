@@ -10,13 +10,13 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="style.css?v=15" />
+  <link rel="stylesheet" href="style.css?v=16" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns" defer></script>
 </head>
 <body>
 
-  <!-- HEADER (MIT ZURÜCK-BUTTON UND KLICKBAREM SYNC-BADGE) -->
+  <!-- HEADER -->
   <header>
     <div style="display:flex; align-items:center; gap:10px;">
       <button class="header-back-btn hidden" id="btn-header-back" onclick="backFromOtherProfile()">← Team</button>
@@ -34,19 +34,19 @@
 
   <!-- AUTH ANSICHT (LOGIN / REGISTRIERUNG) -->
   <div id="auth-view" class="hidden">
-    <div class="profile-switch" style="grid-template-columns: 1fr 1fr;">
-      <button class="profile-btn active" id="auth-tab-login" onclick="switchAuthMode('login')">Anmelden</button>
-      <button class="profile-btn" id="auth-tab-register" onclick="switchAuthMode('register')">Profil erstellen</button>
+    <div class="segmented-switch" style="grid-template-columns: 1fr 1fr;">
+      <button class="seg-btn active" id="auth-tab-login" onclick="switchAuthMode('login')">Anmelden</button>
+      <button class="seg-btn" id="auth-tab-register" onclick="switchAuthMode('register')">Profil erstellen</button>
     </div>
 
     <div class="card">
       <div id="auth-login-box">
-        <div style="font-weight:700; margin-bottom:12px;">Willkommen zurück</div>
-        <div style="margin-bottom:10px;">
+        <div style="font-weight:700; margin-bottom:14px;">Willkommen zurück</div>
+        <div style="margin-bottom:12px;">
           <label>Profilname</label>
           <input type="text" id="login-username" placeholder="z. B. Ludwig" autocomplete="username" />
         </div>
-        <div style="margin-bottom:12px;">
+        <div style="margin-bottom:14px;">
           <label>Passwort</label>
           <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" />
         </div>
@@ -55,12 +55,12 @@
 
       <div id="auth-register-box" class="hidden">
         <div style="font-weight:700; margin-bottom:4px;">Neues Profil anlegen</div>
-        <div class="sub" style="margin-bottom:12px; font-size:0.78rem;">Bestehende Nutzer ohne Passwort können hier ihr Passwort festlegen.</div>
-        <div style="margin-bottom:10px;">
+        <div class="sub" style="margin-bottom:14px; font-size:0.78rem;">Bestehende Nutzer ohne Passwort können hier ihr Passwort festlegen.</div>
+        <div style="margin-bottom:12px;">
           <label>Dein Name (ohne Leerzeichen)</label>
           <input type="text" id="reg-username" placeholder="z. B. Max" />
         </div>
-        <div style="margin-bottom:12px;">
+        <div style="margin-bottom:14px;">
           <label>Passwort wählen</label>
           <input type="password" id="reg-password" placeholder="Mind. 4 Zeichen" />
         </div>
@@ -76,18 +76,18 @@
   <!-- PRIVATSPHÄRE & TEAM-EINSTELLUNGEN -->
   <div id="privacy-view" class="hidden">
     <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
         <strong style="font-size:1rem;">Team & Privatsphäre</strong>
         <button class="btn-ghost" onclick="closePrivacySettings()">Schließen</button>
       </div>
 
-      <label class="checkbox-row" style="margin-bottom:14px;">
+      <label class="checkbox-row" style="margin-bottom:16px;">
         <input type="checkbox" id="priv-share-team" />
         <span><strong>Im Team teilen:</strong> Du erscheinst im Team-Reiter und kannst andere Teammitglieder ansehen.</span>
       </label>
 
-      <div style="margin-bottom:12px;">
-        <label style="margin-bottom:6px;">Wer darf dein privates Profil zusätzlich sehen?</label>
+      <div style="margin-bottom:14px;">
+        <label style="margin-bottom:8px;">Wer darf dein privates Profil zusätzlich sehen?</label>
         <div id="priv-viewers-list" class="viewers-list"></div>
       </div>
 
@@ -95,23 +95,17 @@
     </div>
   </div>
 
-  <!-- HAUPTNAVIGATION (EIGENES PROFIL / TEAM) -->
-  <div id="main-nav" class="profile-switch hidden">
-    <button class="profile-btn active" id="tab-mine" onclick="switchMainTab('mine')">Mein Profil</button>
-    <button class="profile-btn" id="tab-team" onclick="switchMainTab('team')">Team</button>
-  </div>
-
   <!-- SETUP ANSICHT (ZIEL VERFOLGEN ODER GEWICHT HALTEN) -->
   <div id="setup-view" class="hidden">
     <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
         <strong style="font-size:1rem;" id="setup-heading">Ziele festlegen</strong>
         <button class="btn-ghost hidden" id="btn-cancel-setup" onclick="cancelSetup()">Abbrechen</button>
       </div>
 
-      <div class="profile-switch" style="grid-template-columns: 1fr 1fr; margin-bottom:12px;">
-        <button type="button" class="profile-btn active" id="mode-btn-goal" onclick="setSetupMode('goal')">Ziel verfolgen</button>
-        <button type="button" class="profile-btn" id="mode-btn-hold" onclick="setSetupMode('hold')">Gewicht halten (±1 kg)</button>
+      <div class="segmented-switch" style="grid-template-columns: 1fr 1fr; margin-bottom:14px;">
+        <button type="button" class="seg-btn active" id="mode-btn-goal" onclick="setSetupMode('goal')">Ziel verfolgen</button>
+        <button type="button" class="seg-btn" id="mode-btn-hold" onclick="setSetupMode('hold')">Gewicht halten (±1 kg)</button>
       </div>
 
       <div id="setup-fields-goal" class="grid-2">
@@ -138,7 +132,7 @@
           <label>Haltegewicht (kg) · Toleranz ± 1,0 kg</label>
           <input type="number" step="0.1" inputmode="decimal" id="setup-hold-weight" placeholder="78.0" />
         </div>
-        <div class="sub" style="font-size:0.78rem;">
+        <div class="sub" style="font-size:0.8rem;">
           Im Halte-Modus bleibt dein Zielgewicht als waagerechte Linie mit einem Toleranz-Korridor von ± 1,0 kg aktiv.
         </div>
       </div>
@@ -147,75 +141,57 @@
     </div>
   </div>
 
-  <!-- PROFIL-ANSICHT (EIGENES ODER FREMDES PROFIL IM NUR-LESE-MODUS) -->
+  <!-- REITER 1: VERLAUF (EIGENES ODER FREMDES PROFIL) -->
   <div id="app-view" class="hidden">
-    <!-- EINGABE-KACHEL (NUR BEI EIGENEM PROFIL SICHTBAR) -->
-    <div class="card" id="entry-input-card">
-      <div class="grid-2">
-        <div>
-          <label>Datum</label>
-          <input type="date" id="entry-date" />
+    <!-- ZUSAMMENGEFASSTE ÜBERSICHTS-KARTE -->
+    <div class="card overview-card">
+      <div class="overview-grid">
+        <div id="tile-status" class="ov-cell status-good">
+          <div class="tile-label">Soll-Abweichung</div>
+          <div class="tile-main" id="st-diff">--</div>
+          <div class="tile-sub" id="st-target">Soll heute: --</div>
         </div>
-        <div>
-          <label>Gewicht (kg)</label>
-          <div class="stepper">
-            <button type="button" class="step-btn" onclick="stepWeight(-0.1)">−</button>
-            <input type="number" step="0.1" inputmode="decimal" id="entry-weight" placeholder="82.4" />
-            <button type="button" class="step-btn" onclick="stepWeight(0.1)">+</button>
+
+        <div class="ov-cell">
+          <div class="tile-label">Ø Letzte 7 Tage</div>
+          <div class="tile-main" id="st-avg7">--</div>
+          <div class="tile-sub" id="st-avg7-diff">vs. davor: --</div>
+        </div>
+
+        <div class="ov-cell">
+          <div class="tile-label">Wochentempo</div>
+          <div class="tile-main" id="st-rate">--</div>
+          <div class="tile-sub" id="st-kcal">mind. 2 Messungen</div>
+        </div>
+
+        <div class="ov-cell">
+          <div class="tile-header-row">
+            <span class="tile-label" id="st-goal-label">Zielgewicht</span>
+            <button type="button" class="icon-edit-btn" id="btn-edit-goals" onclick="openSetup()" title="Ziele ändern">⚙️</button>
           </div>
+          <div class="tile-main" id="st-goal">--</div>
+          <div class="tile-sub" id="st-goal-date">bis --</div>
         </div>
       </div>
-      <button class="action-btn btn-primary" onclick="addEntry()">Speichern</button>
-    </div>
 
-    <!-- STATISTIK-KACHELN -->
-    <div class="stat-grid">
-      <div id="tile-status" class="stat-tile status-good">
-        <div class="tile-label">Soll-Abweichung</div>
-        <div class="tile-main" id="st-diff">--</div>
-        <div class="tile-sub" id="st-target">Soll heute: --</div>
-      </div>
-
-      <div class="stat-tile">
-        <div class="tile-label">Ø Letzte 7 Tage</div>
-        <div class="tile-main" id="st-avg7">--</div>
-        <div class="tile-sub" id="st-avg7-diff">vs. 7 Tage davor: --</div>
-      </div>
-
-      <div class="stat-tile">
-        <div class="tile-label">Wochentempo</div>
-        <div class="tile-main" id="st-rate">--</div>
-        <div class="tile-sub" id="st-kcal">mind. 2 Messungen</div>
-      </div>
-
-      <div class="stat-tile">
-        <div class="tile-header-row">
-          <span class="tile-label" id="st-goal-label">Zielgewicht</span>
-          <button type="button" class="icon-edit-btn" id="btn-edit-goals" onclick="openSetup()" title="Ziele ändern">⚙️</button>
+      <div class="overview-progress">
+        <div class="progress-labels">
+          <span id="prog-pct">0 % geschafft</span>
+          <span id="prog-rem">noch -- kg</span>
         </div>
-        <div class="tile-main" id="st-goal">--</div>
-        <div class="tile-sub" id="st-goal-date">bis --</div>
+        <div class="progress-track">
+          <div class="progress-fill" id="prog-fill" style="width: 0%;"></div>
+        </div>
+        <button type="button" id="btn-switch-hold" class="hold-switch-btn hidden" onclick="activateHoldModeNow()">
+          Ziel erreicht! Jetzt in Halte-Modus (± 1,0 kg) wechseln
+        </button>
       </div>
-    </div>
-
-    <!-- FORTSCHRITTS-KACHEL -->
-    <div class="card progress-card">
-      <div class="progress-labels">
-        <span id="prog-pct">0 % geschafft</span>
-        <span id="prog-rem">noch -- kg</span>
-      </div>
-      <div class="progress-track">
-        <div class="progress-fill" id="prog-fill" style="width: 0%;"></div>
-      </div>
-      <button type="button" id="btn-switch-hold" class="hold-switch-btn hidden" onclick="activateHoldModeNow()">
-        Ziel erreicht! Jetzt in Halte-Modus (± 1,0 kg) wechseln
-      </button>
     </div>
 
     <!-- VERLAUFS-GRAPH -->
     <div class="card">
       <div class="chart-header">
-        <strong style="font-size:0.95rem;">Verlauf</strong>
+        <strong style="font-size:0.98rem;">Verlauf</strong>
         <div class="zoom-switch">
           <button class="zoom-btn active" id="zoom-all" onclick="setZoom('all')">Gesamt</button>
           <button class="zoom-btn" id="zoom-30" onclick="setZoom('30')">30 Tage</button>
@@ -224,37 +200,57 @@
       <canvas id="weightChart"></canvas>
     </div>
 
-    <!-- LETZTE MESSUNGEN -->
+    <!-- LETZTE MESSUNGEN (KOMPAKT MIT "ALLE ANZEIGEN") -->
     <div class="card">
-      <div style="margin-bottom:8px;">
-        <strong style="font-size:0.95rem;" id="hist-heading">Letzte Messungen</strong>
+      <div class="chart-header" style="margin-bottom:6px;">
+        <strong style="font-size:0.98rem;" id="hist-heading">Letzte Messungen</strong>
+        <span class="sub" id="hist-total-count"></span>
       </div>
       <div class="hist-list" id="history-list"></div>
+      <button type="button" id="btn-toggle-history" class="show-more-btn hidden" onclick="toggleShowAllHistory()">
+        Alle anzeigen
+      </button>
     </div>
 
-    <!-- TROPHÄEN-REGAL -->
-    <div class="card">
+    <!-- NUR BEI FREMDEN PROFILEN: TROPHÄEN-ÜBERSICHT IM NUR-LESE-MODUS -->
+    <div class="card hidden" id="other-profile-trophies-card">
       <div class="trophy-header">
-        <strong style="font-size:0.95rem;">Trophäen-Regal</strong>
-        <span class="sub" id="trophy-count">0 / 14</span>
+        <strong style="font-size:0.98rem;">Trophäen</strong>
+        <span class="sub" id="other-trophy-count">0 / 14</span>
       </div>
-      <div class="trophy-grid" id="trophy-grid"></div>
+      <div class="trophy-grid" id="other-trophy-grid"></div>
     </div>
 
     <!-- DIREKTZUGRIFF AUF FREIGEGEBENE PRIVATE PROFILE -->
     <div id="shared-private-box" class="card hidden">
-      <div style="font-weight:700; font-size:0.9rem; margin-bottom:8px;">Für dich freigegebene Profile</div>
+      <div style="font-weight:700; font-size:0.92rem; margin-bottom:10px;">Für dich freigegebene Profile</div>
       <div id="shared-private-list" class="shared-pills"></div>
     </div>
   </div>
 
-  <!-- TEAM-ANSICHT -->
+  <!-- REITER 2: TROPHÄEN (EIGENE LUFTIGE SEITE) -->
+  <div id="trophies-view" class="hidden">
+    <div class="card">
+      <div class="progress-labels">
+        <span id="next-trophy-title">Nächster Meilenstein</span>
+        <span class="sub" id="trophy-count">0 / 14</span>
+      </div>
+      <div class="progress-track" style="margin-bottom:6px;">
+        <div class="progress-fill" id="next-trophy-fill" style="width: 0%;"></div>
+      </div>
+      <div class="sub" id="next-trophy-sub">Weiter dranbleiben!</div>
+    </div>
+
+    <div class="trophy-grid" id="trophy-grid"></div>
+  </div>
+
+  <!-- REITER 3: TEAM -->
   <div id="team-view" class="hidden">
-    <div class="card" style="text-align:center; padding:18px 16px;">
+    <div class="card" style="text-align:center; padding:22px 18px;">
       <div class="tile-label">TEAM-FORTSCHRITT</div>
       <div class="team-pct-big" id="team-total-pct">0 %</div>
-      <div class="sub" style="margin-bottom:10px;" id="team-member-count">0 Teammitglieder</div>
-      <div class="progress-track" style="height:11px;">
+      <div class="sub" style="margin-bottom:12px;" id="team-member-count">0 Teammitglieder</div>
+      <div class="progress-track" style="height:10px;">
         <div class="progress-fill team-fill" id="team-total-fill" style="width: 0%;"></div>
       </div>
     </div>
@@ -262,16 +258,16 @@
     <!-- UNTERGRUPPEN -->
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <strong style="font-size:0.95rem;">🤝 Untergruppen</strong>
+        <strong style="font-size:0.98rem;">🤝 Untergruppen</strong>
         <button type="button" class="small-add-btn" onclick="toggleSubgroupCreator()">+ Neu</button>
       </div>
 
       <div id="subgroup-creator" class="subgroup-creator hidden">
-        <div style="margin-bottom:8px;">
+        <div style="margin-bottom:10px;">
           <label>Name der Untergruppe</label>
           <input type="text" id="sg-name-input" placeholder="z. B. Ludwig & Hannah" />
         </div>
-        <div style="margin-bottom:10px;">
+        <div style="margin-bottom:12px;">
           <label>Mitglieder auswählen (du bist automatisch dabei)</label>
           <div id="sg-members-checklist" class="viewers-list"></div>
         </div>
@@ -287,7 +283,7 @@
     <!-- GEMEINSAME TEAM-FORTSCHRITTSKURVE -->
     <div class="card">
       <div class="chart-header">
-        <strong style="font-size:0.95rem;">Gemeinsamer Weg (%)</strong>
+        <strong style="font-size:0.98rem;">Gemeinsamer Weg (%)</strong>
         <div class="zoom-switch">
           <button type="button" class="zoom-btn active" id="team-zoom-all" onclick="setTeamZoom('all')">Gesamt</button>
           <button type="button" class="zoom-btn" id="team-zoom-30" onclick="setTeamZoom('30')">30 Tage</button>
@@ -307,6 +303,54 @@
     <div id="team-cards-container" class="team-cards-grid"></div>
   </div>
 
+  <!-- SCHWEBENDER "+"-BUTTON UNTEN RECHTS -->
+  <button type="button" id="fab-weigh" class="fab-btn hidden" onclick="openWeightSheet()" title="Gewicht eintragen" aria-label="Gewicht eintragen">
+    +
+  </button>
+
+  <!-- BOTTOM SHEET FÜR GEWICHTSEINGABE -->
+  <div id="weight-sheet-backdrop" class="sheet-backdrop hidden" onclick="closeWeightSheet()">
+    <div class="bottom-sheet" onclick="event.stopPropagation()">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <strong style="font-size:1.05rem;">Gewicht eintragen</strong>
+        <button type="button" class="sheet-close-btn" onclick="closeWeightSheet()" aria-label="Schließen">✕</button>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label>Datum</label>
+        <input type="date" id="entry-date" />
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label>Gewicht (kg)</label>
+        <div class="stepper stepper-large">
+          <button type="button" class="step-btn" onclick="stepWeight(-0.1)">−</button>
+          <input type="number" step="0.1" inputmode="decimal" id="entry-weight" placeholder="82.4" />
+          <button type="button" class="step-btn" onclick="stepWeight(0.1)">+</button>
+        </div>
+      </div>
+
+      <button type="button" class="action-btn btn-primary" onclick="addEntry()">Speichern</button>
+    </div>
+  </div>
+
+  <!-- BOTTOM TAB BAR -->
+  <nav id="bottom-nav" class="bottom-nav hidden">
+    <button type="button" class="bottom-nav-btn active" id="nav-verlauf" onclick="switchMainTab('verlauf')">
+      <span class="nav-icon">📈</span>
+      <span class="nav-label">Verlauf</span>
+    </button>
+    <button type="button" class="bottom-nav-btn" id="nav-trophies" onclick="switchMainTab('trophies')">
+      <span class="nav-icon">🏆</span>
+      <span class="nav-label">Trophäen</span>
+    </button>
+    <button type="button" class="bottom-nav-btn" id="nav-team" onclick="switchMainTab('team')">
+      <span class="nav-icon">👥</span>
+      <span class="nav-label">Team</span>
+    </button>
+  </nav>
+
   <!-- BELOHNUNGS-POP-UP MODAL -->
   <div id="reward-modal" class="modal-backdrop hidden">
     <div class="confetti-layer" id="confetti-layer"></div>
@@ -320,6 +364,6 @@
   </div>
 
   <script src="config.js"></script>
-  <script type="module" src="js/main.js?v=15"></script>
+  <script type="module" src="js/main.js?v=16"></script>
 </body>
 </html>
