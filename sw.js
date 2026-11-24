@@ -1,4 +1,4 @@
-const CACHE_NAME = "wt-cache-v15";
+const CACHE_NAME = "wt-cache-v16";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -40,12 +40,10 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(req.url);
 
-  // Google Apps Script API niemals cachen
   if (url.hostname.includes("script.google.com") || url.hostname.includes("googleusercontent.com")) {
     return;
   }
 
-  // Externe Bibliotheken (Chart.js): Cache-First mit Hintergrund-Update
   if (url.origin !== self.location.origin) {
     event.respondWith(
       caches.match(req).then((cached) => {
@@ -64,7 +62,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Eigene App-Dateien: Stale-While-Revalidate (sofortiger Start aus Cache + Update im Hintergrund)
   event.respondWith(
     caches.match(req, { ignoreSearch: true }).then((cached) => {
       const networkFetch = fetch(req)
