@@ -82,9 +82,9 @@ export function renderWeightChart(prof) {
   }
 
   const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const gridColor = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)";
+  const gridColor = isDark ? "rgba(255, 255, 255, 0.06)" : "rgba(15, 23, 42, 0.05)";
   const tickColor = isDark ? "#94a3b8" : "#64748b";
-  const linePrimary = isDark ? "#3b82f6" : "#2563eb";
+  const linePrimary = isDark ? "rgba(96, 165, 250, 0.72)" : "rgba(37, 99, 235, 0.65)";
 
   let xMin = undefined;
   let xMax = undefined;
@@ -112,9 +112,15 @@ export function renderWeightChart(prof) {
 
   const istData = entries.map((e) => ({ x: e.date, y: e.weight }));
   const trendData = entries.map((e, idx) => ({ x: e.date, y: trendValues[idx] }));
-  const progData = (!holdMode && prognosisPoint && state.chartZoom === "all")
-    ? [{ x: latest.date, y: trendValues[trendValues.length - 1] }, { x: prognosisPoint.date, y: prognosisPoint.weight }]
-    : [];
+  const progData =
+    !holdMode && prognosisPoint && state.chartZoom === "all"
+      ? [{ x: latest.date, y: trendValues[trendValues.length - 1] }, { x: prognosisPoint.date, y: prognosisPoint.weight }]
+      : [];
+
+  const ctx2d = ctxEl.getContext("2d");
+  const trendGradient = ctx2d.createLinearGradient(0, 0, 0, 260);
+  trendGradient.addColorStop(0, "rgba(249, 115, 22, 0.16)");
+  trendGradient.addColorStop(1, "rgba(249, 115, 22, 0.0)");
 
   const datasets = [
     {
@@ -122,7 +128,7 @@ export function renderWeightChart(prof) {
       data: sollData,
       borderColor: holdMode ? "#16a34a" : "#94a3b8",
       borderDash: [6, 6],
-      borderWidth: 2,
+      borderWidth: 1.8,
       pointRadius: 0
     },
     {
@@ -130,13 +136,15 @@ export function renderWeightChart(prof) {
       data: istData,
       borderColor: linePrimary,
       backgroundColor: linePrimary,
-      borderWidth: 1.5,
-      pointRadius: 3
+      borderWidth: 1.2,
+      pointRadius: 2.2
     },
     {
       label: "7-Tage-Trend",
       data: trendData,
       borderColor: "#f97316",
+      backgroundColor: trendGradient,
+      fill: !holdMode,
       borderWidth: 2.8,
       pointRadius: 0,
       tension: 0.4,
@@ -183,7 +191,7 @@ export function renderWeightChart(prof) {
   }
 
   destroyWeightChart();
-  chartInstance = new Chart(ctxEl.getContext("2d"), {
+  chartInstance = new Chart(ctx2d, {
     type: "line",
     data: { datasets },
     options: {
@@ -193,7 +201,7 @@ export function renderWeightChart(prof) {
         legend: {
           position: "top",
           labels: {
-            boxWidth: 12,
+            boxWidth: 11,
             font: { size: 11 },
             color: tickColor,
             filter: (item) => !item.text.startsWith("Korridor")
@@ -297,7 +305,7 @@ export function renderTeamChart() {
   }
 
   const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const gridColor = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)";
+  const gridColor = isDark ? "rgba(255, 255, 255, 0.06)" : "rgba(15, 23, 42, 0.05)";
   const tickColor = isDark ? "#94a3b8" : "#64748b";
 
   if (teamChartInstance) teamChartInstance.destroy();
@@ -310,22 +318,22 @@ export function renderTeamChart() {
           data: sollData,
           borderColor: "#94a3b8",
           borderDash: [6, 6],
-          borderWidth: 2,
+          borderWidth: 1.8,
           pointRadius: 0
         },
         {
           label: "Tageswerte",
           data: rawTeamSeries,
-          borderColor: "rgba(139, 92, 246, 0.28)",
-          borderWidth: 1.5,
-          pointRadius: 2,
-          pointBackgroundColor: "rgba(139, 92, 246, 0.35)"
+          borderColor: "rgba(139, 92, 246, 0.24)",
+          borderWidth: 1.2,
+          pointRadius: 1.8,
+          pointBackgroundColor: "rgba(139, 92, 246, 0.32)"
         },
         {
           label: "Team-Trend",
           data: smoothTeamSeries,
           borderColor: "#8b5cf6",
-          backgroundColor: "rgba(139, 92, 246, 0.14)",
+          backgroundColor: "rgba(139, 92, 246, 0.12)",
           fill: true,
           borderWidth: 3,
           pointRadius: 0,
@@ -338,7 +346,7 @@ export function renderTeamChart() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: "top", labels: { boxWidth: 12, font: { size: 11 }, color: tickColor } },
+        legend: { position: "top", labels: { boxWidth: 11, font: { size: 11 }, color: tickColor } },
         tooltip: {
           callbacks: {
             title: (items) => formatDE(items[0].raw.x),
