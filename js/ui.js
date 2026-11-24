@@ -33,6 +33,30 @@ import {
   checkAndUnlockMilestones
 } from "./milestones.js";
 
+// --- BOTTOM SHEET FÜR GEWICHTSEINGABE ---
+export function openWeightSheet(prefillDate = null, prefillWeight = null) {
+  if (!state.authSession) return;
+  haptic(10);
+
+  const dateInput = document.getElementById("entry-date");
+  const weightInput = document.getElementById("entry-weight");
+
+  if (prefillDate && prefillWeight !== null) {
+    dateInput.value = prefillDate;
+    weightInput.value = Number(prefillWeight).toFixed(1);
+  } else {
+    dateInput.value = todayISO();
+    const entries = getEntries(state.authSession.username);
+    weightInput.value = entries.length > 0 ? entries[entries.length - 1].weight.toFixed(1) : "";
+  }
+
+  document.getElementById("weight-sheet-backdrop").classList.remove("hidden");
+}
+
+export function closeWeightSheet() {
+  document.getElementById("weight-sheet-backdrop").classList.add("hidden");
+}
+
 // --- AUTH ---
 export function switchAuthMode(mode) {
   haptic(10);
@@ -67,7 +91,7 @@ export async function submitLogin() {
     state.lastSyncTime = Date.now();
     persistStore();
     state.viewedProfile = state.authSession.username;
-    state.activeMainTab = "mine";
+    state.activeMainTab = "verlauf";
     state.openedFromTeam = false;
 
     setSyncBadge("✓ Cloud", true);
@@ -109,7 +133,7 @@ export async function submitRegister() {
     state.authSession = { username: regRes.username, hash };
     persistAuth();
     state.viewedProfile = state.authSession.username;
-    state.activeMainTab = "mine";
+    state.activeMainTab = "verlauf";
     state.openedFromTeam = false;
 
     await syncAllFromCloud({ force: true });
@@ -134,11 +158,14 @@ export function logout(skipConfirm = false) {
 }
 
 export function showAuthScreen() {
+  closeWeightSheet();
   document.getElementById("auth-view").classList.remove("hidden");
   document.getElementById("privacy-view").classList.add("hidden");
-  document.getElementById("main-nav").classList.add("hidden");
+  document.getElementById("bottom-nav").classList.add("hidden");
+  document.getElementById("fab-weigh").classList.add("hidden");
   document.getElementById("setup-view").classList.add("hidden");
   document.getElementById("app-view").classList.add("hidden");
+  document.getElementById("trophies-view").classList.add("hidden");
   document.getElementById("team-view").classList.add("hidden");
   document.getElementById("logged-user-label").classList.add("hidden");
   document.getElementById("btn-privacy").classList.add("hidden");
@@ -166,15 +193,25 @@ export function updateHeaderState() {
   const titleEl = document.getElementById("header-title");
   const subEl = document.getElementById("logged-user-label");
 
-  if (own || state.activeMainTab === "team") {
+  if (own || state.activeMainTab === "team" || state.activeMainTab === "trophies") {
     backBtn.classList.add("hidden");
-    titleEl.innerText = "Gewichts-Tracker";
+    const myStreak = calculateStreak(state.authSession.username);
+    if (state.activeMainTab === "trophies") {
+      titleEl.innerText = "Trophäen";
+    } else if (state.activeMainTab === "team") {
+      titleEl.innerText = "Team";
+    } else {
+      titleEl.innerText = "Gewichts-Tracker";
+    }
     subEl.classList.remove("hidden");
-    subEl.innerText = `Hallo, ${state.authSession.username}`;
+    subEl.innerHTML =
+      myStreak >= 5
+        ? `${state.authSession.username} · <span class="streak-pill">🔥 ${myStreak} Tage</span>`
+        : `Hallo, ${state.authSession.username}`;
   } else {
     backBtn.classList.remove("hidden");
     backBtn.innerText = state.openedFromTeam && canAccessTeam ? "← Team" : `← ${state.authSession.username}`;
-    titleEl.innerText = `Profil: ${state.viewedProfile}`;
+    titleEl.innerText = state.viewedProfile;
     subEl.classList.remove("hidden");
     subEl.innerText = "Nur-Lese-Ansicht";
   }
@@ -184,32 +221,46 @@ export function refreshCurrentScreen() {
   if (!state.authSession || !state.appStore) return;
 
   const canAccessTeam = Boolean(state.appStore.me && state.appStore.me.shareTeam);
-  const navEl = document.getElementById("main-nav");
-  navEl.classList.toggle("hidden", !canAccessTeam);
+  const navEl = document.getElementById("bottom-nav");
+  const teamNavBtn = document.getElementById("nav-team");
 
-  const mineBtn = document.getElementById("tab-mine");
-  const myStreak = calculateStreak(state.authSession.username);
-  mineBtn.innerHTML =
-    myStreak >= 5
-      ? `${state.authSession.username} <span class="streak-pill">🔥 ${myStreak}</span>`
-      : state.authSession.username;
+  navEl.classList.remove("hidden");
+  navEl.classList.toggle("two-tabs", !canAccessTeam);
+  teamNavBtn.classList.toggle("hidden", !canAccessTeam);
 
-  const teamTabShouldBeActive =
-    canAccessTeam && (state.activeMainTab === "team" || (!isOwnProfile() && state.openedFromTeam));
-  mineBtn.classList.toggle("active", !teamTabShouldBeActive);
-  document.getElementById("tab-team").classList.toggle("active", teamTabShouldBeActive);
+  if (state.activeMainTab === "team" && !canAccessTeam) {
+    state.activeMainTab = "verlauf";
+  }
+
+  const viewingOther = !isOwnProfile() && state.activeMainTab === "verlauf";
+  const teamActive = canAccessTeam && (state.activeMainTab === "team" || (viewingOther && state.openedFromTeam));
+  const trophiesActive = state.activeMainTab === "trophies";
+  const verlaufActive = !teamActive && !trophiesActive;
+
+  document.getElementById("nav-verlauf").classList.toggle("active", verlaufActive);
+  document.getElementById("nav-trophies").classList.toggle("active", trophiesActive);
+  teamNavBtn.classList.toggle("active", teamActive);
 
   updateHeaderState();
 
+  const needsSetup = isOwnProfile() && !getGoals(state.authSession.username) && state.activeMainTab === "verlauf";
+  const fabEl = document.getElementById("fab-weigh");
+  const showFab = !needsSetup && isOwnProfile() && (state.activeMainTab === "verlauf" || state.activeMainTab === "trophies");
+  fabEl.classList.toggle("hidden", !showFab);
+
+  if (needsSetup) {
+    navEl.classList.add("hidden");
+    openSetup();
+    return;
+  }
+
   if (state.activeMainTab === "team" && canAccessTeam) {
     showTeamView();
+  } else if (state.activeMainTab === "trophies") {
+    showTrophiesView();
   } else {
-    state.activeMainTab = "mine";
-    if (isOwnProfile() && !getGoals(state.authSession.username)) {
-      openSetup();
-    } else {
-      showProfileView(state.viewedProfile || state.authSession.username);
-    }
+    state.activeMainTab = "verlauf";
+    showProfileView(state.viewedProfile || state.authSession.username);
   }
 }
 
@@ -217,11 +268,11 @@ export function switchMainTab(tab) {
   haptic(10);
   state.activeMainTab = tab;
   state.openedFromTeam = false;
-  if (tab === "mine") {
+  state.showAllHistory = false;
+  if (tab === "verlauf" || tab === "trophies") {
     state.viewedProfile = state.authSession.username;
   }
   refreshCurrentScreen();
-  // Nutzt den 60s-Cooldown – kein Warten beim schnellen Tab-Wechsel
   syncAllFromCloud({ force: false });
 }
 
@@ -229,8 +280,9 @@ export function backFromOtherProfile() {
   haptic(10);
   const canAccessTeam = Boolean(state.appStore && state.appStore.me && state.appStore.me.shareTeam);
   state.viewedProfile = state.authSession.username;
-  state.activeMainTab = state.openedFromTeam && canAccessTeam ? "team" : "mine";
+  state.activeMainTab = state.openedFromTeam && canAccessTeam ? "team" : "verlauf";
   state.openedFromTeam = false;
+  state.showAllHistory = false;
   refreshCurrentScreen();
 }
 
@@ -238,7 +290,8 @@ export function openOtherProfile(username) {
   haptic(10);
   state.viewedProfile = username;
   state.openedFromTeam = true;
-  state.activeMainTab = "mine";
+  state.showAllHistory = false;
+  state.activeMainTab = "verlauf";
   refreshCurrentScreen();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -247,9 +300,11 @@ export function openOtherProfile(username) {
 export function openPrivacySettings() {
   haptic(10);
   document.getElementById("privacy-view").classList.remove("hidden");
-  document.getElementById("main-nav").classList.add("hidden");
+  document.getElementById("bottom-nav").classList.add("hidden");
+  document.getElementById("fab-weigh").classList.add("hidden");
   document.getElementById("setup-view").classList.add("hidden");
   document.getElementById("app-view").classList.add("hidden");
+  document.getElementById("trophies-view").classList.add("hidden");
   document.getElementById("team-view").classList.add("hidden");
 
   document.getElementById("priv-share-team").checked = Boolean(state.appStore.me.shareTeam);
@@ -311,7 +366,9 @@ export function openSetup() {
   haptic(10);
   document.getElementById("setup-view").classList.remove("hidden");
   document.getElementById("app-view").classList.add("hidden");
+  document.getElementById("trophies-view").classList.add("hidden");
   document.getElementById("team-view").classList.add("hidden");
+  document.getElementById("fab-weigh").classList.add("hidden");
   document.getElementById("setup-heading").innerText = `Ziele festlegen (${state.authSession.username})`;
 
   const goals = getGoals(state.authSession.username);
@@ -331,7 +388,7 @@ export function openSetup() {
 export function cancelSetup() {
   if (getGoals(state.authSession.username)) {
     haptic(10);
-    showProfileView(state.authSession.username);
+    refreshCurrentScreen();
   }
 }
 
@@ -412,25 +469,42 @@ export async function activateHoldModeNow() {
   setSyncBadge("✓ Cloud", true);
 }
 
-// --- EINZELPROFIL ---
+// --- REITER 2: TROPHÄEN ---
+export function showTrophiesView() {
+  document.getElementById("setup-view").classList.add("hidden");
+  document.getElementById("app-view").classList.add("hidden");
+  document.getElementById("team-view").classList.add("hidden");
+  document.getElementById("trophies-view").classList.remove("hidden");
+
+  renderTrophyShelf(state.authSession.username, "trophy-grid", "trophy-count");
+}
+
+// --- REITER 1: VERLAUF / PROFIL ---
+export function toggleShowAllHistory() {
+  haptic(10);
+  state.showAllHistory = !state.showAllHistory;
+  if (state.viewedProfile) {
+    renderProfileData(state.viewedProfile);
+  }
+}
+
 export function showProfileView(prof) {
   state.viewedProfile = prof;
   const own = isOwnProfile();
 
   document.getElementById("setup-view").classList.add("hidden");
+  document.getElementById("trophies-view").classList.add("hidden");
   document.getElementById("team-view").classList.add("hidden");
   document.getElementById("app-view").classList.remove("hidden");
 
-  document.getElementById("entry-input-card").classList.toggle("hidden", !own);
   document.getElementById("btn-edit-goals").classList.toggle("hidden", !own);
+  document.getElementById("other-profile-trophies-card").classList.toggle("hidden", own);
 
-  if (own) {
-    document.getElementById("entry-date").value = todayISO();
-    const entries = getEntries(prof);
-    document.getElementById("entry-weight").value = entries.length > 0 ? entries[entries.length - 1].weight.toFixed(1) : "";
+  if (!own) {
+    renderTrophyShelf(prof, "other-trophy-grid", "other-trophy-count");
   }
 
-  document.getElementById("hist-heading").innerText = `Letzte Messungen (${prof})`;
+  document.getElementById("hist-heading").innerText = own ? "Letzte Messungen" : `Messungen (${prof})`;
 
   const sharedBox = document.getElementById("shared-private-box");
   if (own && state.appStore && state.appStore.profiles) {
@@ -456,8 +530,6 @@ export function renderProfileData(prof) {
   const own = isOwnProfile();
   const holdMode = isMaintenanceMode(goals);
 
-  renderTrophyShelf(prof);
-
   if (goals) {
     document.getElementById("st-goal-label").innerText = holdMode ? "Haltegewicht" : "Zielgewicht";
     document.getElementById("st-goal").innerText = `${goals.goalWeight.toFixed(1)} kg`;
@@ -470,20 +542,36 @@ export function renderProfileData(prof) {
     document.getElementById("st-goal-date").innerText = "Noch nicht eingerichtet";
   }
 
+  // Historie: letzte 4 offen, mit "Alle anzeigen"-Button
+  const reversed = [...entries].reverse();
+  const visibleEntries = state.showAllHistory ? reversed : reversed.slice(0, 4);
+  document.getElementById("hist-total-count").innerText = entries.length > 0 ? `${entries.length} gesamt` : "";
+
   const histEl = document.getElementById("history-list");
-  histEl.innerHTML = [...entries]
-    .reverse()
-    .map(
-      (e) => `
-    <div class="hist-item">
-      <div ${own ? `onclick="editEntry('${e.date}', ${e.weight})" style="cursor:pointer;"` : ""}>
-        <strong>${formatDE(e.date)}</strong> &nbsp;·&nbsp; ${e.weight.toFixed(1)} kg
+  if (visibleEntries.length === 0) {
+    histEl.innerHTML = `<div class="sub" style="padding:6px 0;">Noch keine Messungen eingetragen.</div>`;
+  } else {
+    histEl.innerHTML = visibleEntries
+      .map(
+        (e) => `
+      <div class="hist-item">
+        <div ${own ? `onclick="editEntry('${e.date}', ${e.weight})" style="cursor:pointer;"` : ""}>
+          <strong>${formatDE(e.date)}</strong> &nbsp;·&nbsp; ${e.weight.toFixed(1)} kg
+        </div>
+        ${own ? `<button class="btn-danger" onclick="deleteEntry('${e.date}')">Löschen</button>` : ""}
       </div>
-      ${own ? `<button class="btn-danger" onclick="deleteEntry('${e.date}')">Löschen</button>` : ""}
-    </div>
-  `
-    )
-    .join("");
+    `
+      )
+      .join("");
+  }
+
+  const toggleHistBtn = document.getElementById("btn-toggle-history");
+  if (entries.length > 4) {
+    toggleHistBtn.classList.remove("hidden");
+    toggleHistBtn.innerText = state.showAllHistory ? "Weniger anzeigen" : `Alle anzeigen (${entries.length})`;
+  } else {
+    toggleHistBtn.classList.add("hidden");
+  }
 
   if (!goals || entries.length === 0) {
     document.getElementById("st-diff").innerText = "–";
@@ -507,7 +595,7 @@ export function renderProfileData(prof) {
   const onTrack = holdMode ? Math.abs(diff) <= HOLD_TOLERANCE_KG : isLossGoal ? diff <= 0 : diff >= 0;
 
   const tileStatus = document.getElementById("tile-status");
-  tileStatus.className = `stat-tile ${onTrack ? "status-good" : "status-bad"}`;
+  tileStatus.className = `ov-cell ${onTrack ? "status-good" : "status-bad"}`;
   const sign = diff > 0 ? "+" : "";
   if (holdMode) {
     const corrStatus = onTrack ? `im Korridor (±${HOLD_TOLERANCE_KG} kg)` : "außerhalb Korridor";
@@ -585,7 +673,7 @@ export function renderProfileData(prof) {
   renderWeightChart(prof);
 }
 
-// --- TEAM & UNTERGRUPPEN ---
+// --- REITER 3: TEAM & UNTERGRUPPEN ---
 export function setTeamSort(mode) {
   haptic(10);
   state.teamSortBy = mode;
@@ -706,6 +794,7 @@ function renderSubgroupsList() {
 export function showTeamView() {
   document.getElementById("setup-view").classList.add("hidden");
   document.getElementById("app-view").classList.add("hidden");
+  document.getElementById("trophies-view").classList.add("hidden");
   document.getElementById("team-view").classList.remove("hidden");
 
   document.getElementById("sort-streak").classList.toggle("active", state.teamSortBy === "streak");
@@ -823,7 +912,6 @@ export function showTeamView() {
 
 // --- EINTRÄGE SPEICHERN / LÖSCHEN / BEARBEITEN ---
 export function stepWeight(delta) {
-  if (!isOwnProfile()) return;
   haptic(8);
   const input = document.getElementById("entry-weight");
   let current = parseFloat(input.value.replace(",", "."));
@@ -836,7 +924,7 @@ export function stepWeight(delta) {
 }
 
 export async function addEntry() {
-  if (!isOwnProfile()) return;
+  if (!state.authSession) return;
   const date = document.getElementById("entry-date").value;
   const weightInput = document.getElementById("entry-weight");
   const weight = parseFloat(weightInput.value.replace(",", "."));
@@ -846,16 +934,21 @@ export async function addEntry() {
   }
 
   haptic(15);
-  weightInput.blur(); // Schließt auf dem Handy automatisch das Ziffernblatt
+  weightInput.blur();
+  closeWeightSheet();
 
   const entryObj = { date, weight };
   const myData = getProfileData(state.authSession.username);
   myData.entries = myData.entries.filter((e) => e.date !== date);
   myData.entries.push(entryObj);
   persistStore();
-  weightInput.value = weight.toFixed(1);
 
+  state.viewedProfile = state.authSession.username;
+  if (state.activeMainTab !== "trophies") {
+    state.activeMainTab = "verlauf";
+  }
   refreshCurrentScreen();
+
   setSyncBadge("Speichere...");
   await callAuthedApi({ action: "saveEntry", entry: entryObj });
   setSyncBadge("✓ Cloud", true);
@@ -878,10 +971,5 @@ export async function deleteEntry(date) {
 
 export function editEntry(date, weight) {
   if (!isOwnProfile()) return;
-  haptic(10);
-  document.getElementById("entry-date").value = date;
-  const input = document.getElementById("entry-weight");
-  input.value = weight.toFixed(1);
-  window.scrollTo({ top: 0, behavior: "smooth" });
-  setTimeout(() => input.focus(), 200);
+  openWeightSheet(date, weight);
 }
