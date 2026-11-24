@@ -55,7 +55,19 @@ body { margin: 0; background: var(--bg); color: var(--text); padding: 16px; max-
 header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; }
 h1 { font-size: 1.25rem; margin: 0; line-height: 1.2; }
 .sub { font-size: 0.8rem; color: var(--muted); }
-.sync-badge { font-size: 0.72rem; font-weight: 600; padding: 4px 9px; border-radius: 99px; background: var(--switch-bg); color: var(--muted); white-space: nowrap; }
+.sync-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 99px;
+  background: var(--switch-bg);
+  color: var(--muted);
+  white-space: nowrap;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.sync-badge:active { transform: scale(0.95); }
 .sync-ok { background: var(--good-bg); color: var(--good-text); }
 .icon-header-btn {
   background: var(--card);
