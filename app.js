@@ -22,19 +22,29 @@
 })();
 
 // --- STATE ---
-let authSession = JSON.parse(localStorage.getItem("wt_auth_session") || "null"); // { username, hash }
-let appStore = JSON.parse(localStorage.getItem("wt_app_store") || "null"); // { me, allUsernames, profiles, subgroups }
-let activeMainTab = "mine"; // "mine" | "team"
-let viewedProfile = null;   // Derzeit betrachtetes Profil (eigenes oder fremdes)
-let openedFromTeam = false; // Steuert, ob das fremde Profil im Team-Modus geöffnet ist
+const HOLD_TOLERANCE_KG = 1.0;
+
+let authSession = JSON.parse(localStorage.getItem("wt_auth_session") || "null");
+let appStore = JSON.parse(localStorage.getItem("wt_app_store") || "null");
+let activeMainTab = "mine";
+let viewedProfile = null;
+let openedFromTeam = false;
 let chartZoom = localStorage.getItem("wt_chart_zoom") || "all";
-let teamSortBy = localStorage.getItem("wt_team_sort") || "streak"; // "streak" | "progress"
+let teamChartZoom = localStorage.getItem("wt_team_chart_zoom") || "all";
+let teamSortBy = localStorage.getItem("wt_team_sort") || "streak";
+let setupMode = "goal"; // "goal" | "hold"
 let chartInstance = null;
 let teamChartInstance = null;
 let rewardQueue = [];
 
 function isOwnProfile() {
   return authSession && viewedProfile === authSession.username;
+}
+
+// Erkennt den Halte-Modus (Startgewicht == Zielgewicht)
+function isMaintenanceMode(goals) {
+  if (!goals) return false;
+  return Math.abs(goals.startWeight - goals.goalWeight) < 0.05;
 }
 
 // --- SHA-256 PASSWORT HASHING ---
@@ -111,7 +121,7 @@ function getMilestoneDefinitions(prof) {
     },
     {
       id: "group_streak_10", type: "group_streak", threshold: 10, shelfIcon: "💪", shelfLabel: "Team 10d",
-      tag: "GRUPPEN-STREAK · 10 TAGE", modalIcon: "🤜🤛", title: "10 Tage im Gleichschritt!",
+      tag: "GRUPPEN-STREAK · 10 TAGE", modalIcon: "💪", title: "10 Tage im Gleichschritt!",
       text: `Zweistellig im Team! Du hast mit einer Gruppe 10 Tage lückenlos gemeinsam gewogen.`
     },
     {
@@ -375,8 +385,14 @@ function getMaxUserGroupStreak(prof) {
   return maxBest;
 }
 
+// Berechnet Fortschritts-% (im Halte-Modus = 100 % wenn im ±1 kg Korridor)
 function calculateProgressPctForWeight(weight, goals) {
   if (!goals) return 0;
+  if (isMaintenanceMode(goals)) {
+    const dev = Math.abs(weight - goals.goalWeight);
+    if (dev <= HOLD_TOLERANCE_KG) return 100;
+    return Math.max(0, 100 - (dev - HOLD_TOLERANCE_KG) * 20);
+  }
   const isLossGoal = goals.goalWeight <= goals.startWeight;
   const totalDelta = Math.abs(goals.startWeight - goals.goalWeight);
   if (totalDelta <= 0) return 0;
@@ -451,7 +467,6 @@ function refreshCurrentScreen() {
     ? `${authSession.username} <span class="streak-pill">🔥 ${myStreak}</span>`
     : authSession.username;
 
-  // Wenn ein fremdes Profil geöffnet ist, bleibt der Team-Tab aktiv (falls sichtbar)
   const teamTabShouldBeActive = canAccessTeam && ((activeMainTab === "team") || (!isOwnProfile() && openedFromTeam));
   mineBtn.classList.toggle("active", !teamTabShouldBeActive);
   document.getElementById("tab-team").classList.toggle("active", teamTabShouldBeActive);
@@ -492,7 +507,6 @@ function backFromOtherProfile() {
   refreshCurrentScreen();
 }
 
-// Öffnet ein anderes Profil immer im Team-Modus
 function openOtherProfile(username) {
   viewedProfile = username;
   openedFromTeam = true;
@@ -547,7 +561,15 @@ async function savePrivacySettings() {
   }
 }
 
-// --- SETUP (NUR EIGENES PROFIL) ---
+// --- SETUP (ZIEL VERFOLGEN ODER HALTE-MODUS) ---
+function setSetupMode(mode) {
+  setupMode = mode;
+  document.getElementById("mode-btn-goal").classList.toggle("active", mode === "goal");
+  document.getElementById("mode-btn-hold").classList.toggle("active", mode === "hold");
+  document.getElementById("setup-fields-goal").classList.toggle("hidden", mode !== "goal");
+  document.getElementById("setup-fields-hold").classList.toggle("hidden", mode !== "hold");
+}
+
 function openSetup() {
   if (!isOwnProfile()) return;
   document.getElementById("setup-view").classList.remove("hidden");
@@ -556,11 +578,17 @@ function openSetup() {
   document.getElementById("setup-heading").innerText = `Ziele festlegen (${authSession.username})`;
 
   const goals = getGoals(authSession.username);
+  const entries = getEntries(authSession.username);
+  const latestWeight = entries.length > 0 ? entries[entries.length - 1].weight : "";
+
   document.getElementById("btn-cancel-setup").classList.toggle("hidden", !goals);
   document.getElementById("setup-start-date").value = goals ? goals.startDate : todayISO();
   document.getElementById("setup-end-date").value = goals ? goals.endDate : "2026-12-31";
-  document.getElementById("setup-start-weight").value = goals ? goals.startWeight : "";
+  document.getElementById("setup-start-weight").value = goals ? goals.startWeight : latestWeight;
   document.getElementById("setup-goal-weight").value = goals ? goals.goalWeight : "";
+  document.getElementById("setup-hold-weight").value = goals ? goals.goalWeight : latestWeight;
+
+  setSetupMode(isMaintenanceMode(goals) ? "hold" : "goal");
 }
 
 function cancelSetup() {
@@ -570,17 +598,38 @@ function cancelSetup() {
 }
 
 async function saveSetup() {
-  const startDate = document.getElementById("setup-start-date").value;
-  const endDate = document.getElementById("setup-end-date").value;
-  const startWeight = parseFloat(document.getElementById("setup-start-weight").value);
-  const goalWeight = parseFloat(document.getElementById("setup-goal-weight").value);
+  let goalsObj = null;
 
-  if (!startDate || !endDate || isNaN(startWeight) || isNaN(goalWeight) || endDate <= startDate) {
-    alert("Bitte prüfe Datum und Gewichtsangaben!");
-    return;
+  if (setupMode === "hold") {
+    const holdWeight = parseFloat(document.getElementById("setup-hold-weight").value);
+    if (isNaN(holdWeight) || holdWeight <= 0) {
+      alert("Bitte ein gültiges Haltegewicht eingeben!");
+      return;
+    }
+    const today = todayISO();
+    goalsObj = {
+      startDate: today,
+      endDate: addDaysISO(today, 365),
+      startWeight: holdWeight,
+      goalWeight: holdWeight
+    };
+  } else {
+    const startDate = document.getElementById("setup-start-date").value;
+    const endDate = document.getElementById("setup-end-date").value;
+    const startWeight = parseFloat(document.getElementById("setup-start-weight").value);
+    const goalWeight = parseFloat(document.getElementById("setup-goal-weight").value);
+
+    if (!startDate || !endDate || isNaN(startWeight) || isNaN(goalWeight) || endDate <= startDate) {
+      alert("Bitte prüfe Datum und Gewichtsangaben!");
+      return;
+    }
+    if (Math.abs(startWeight - goalWeight) < 0.05) {
+      alert("Wenn Start- und Zielgewicht gleich sind, wähle bitte oben 'Gewicht halten (±1 kg)'.");
+      return;
+    }
+    goalsObj = { startDate, endDate, startWeight, goalWeight };
   }
 
-  const goalsObj = { startDate, endDate, startWeight, goalWeight };
   const myData = getProfileData(authSession.username);
   myData.goals = goalsObj;
   localStorage.setItem("wt_app_store", JSON.stringify(appStore));
@@ -588,8 +637,8 @@ async function saveSetup() {
   setSyncBadge("Speichere...");
   await callAuthedApi({ action: "saveGoals", goals: goalsObj });
 
-  if (!myData.entries.some(e => e.date === startDate)) {
-    const firstEntry = { date: startDate, weight: startWeight };
+  if (setupMode === "goal" && !myData.entries.some(e => e.date === goalsObj.startDate)) {
+    const firstEntry = { date: goalsObj.startDate, weight: goalsObj.startWeight };
     myData.entries.push(firstEntry);
     localStorage.setItem("wt_app_store", JSON.stringify(appStore));
     await callAuthedApi({ action: "saveEntry", entry: firstEntry });
@@ -599,7 +648,32 @@ async function saveSetup() {
   refreshCurrentScreen();
 }
 
-// --- EINZELPROFIL ANZEIGEN (EIGENES ODER NUR-LESE) ---
+// Ein-Klick-Wechsel in den Halte-Modus nach Erreichen des Zielgewichts
+async function activateHoldModeNow() {
+  if (!isOwnProfile()) return;
+  const goals = getGoals(authSession.username);
+  if (!goals) return;
+  if (!confirm(`Möchtest du jetzt in den Halte-Modus wechseln (${goals.goalWeight.toFixed(1)} kg ± ${HOLD_TOLERANCE_KG.toFixed(1)} kg)?`)) return;
+
+  const today = todayISO();
+  const holdGoals = {
+    startDate: today,
+    endDate: addDaysISO(today, 365),
+    startWeight: goals.goalWeight,
+    goalWeight: goals.goalWeight
+  };
+
+  const myData = getProfileData(authSession.username);
+  myData.goals = holdGoals;
+  localStorage.setItem("wt_app_store", JSON.stringify(appStore));
+
+  refreshCurrentScreen();
+  setSyncBadge("Speichere...");
+  await callAuthedApi({ action: "saveGoals", goals: holdGoals });
+  setSyncBadge("✓ Cloud", true);
+}
+
+// --- EINZELPROFIL ANZEIGEN ---
 function showProfileView(prof) {
   viewedProfile = prof;
   const own = isOwnProfile();
@@ -641,13 +715,18 @@ function renderProfileData(prof) {
   const goals = getGoals(prof);
   const entries = getEntries(prof);
   const own = isOwnProfile();
+  const holdMode = isMaintenanceMode(goals);
 
   renderTrophyShelf(prof);
 
   if (goals) {
+    document.getElementById("st-goal-label").innerText = holdMode ? "Haltegewicht" : "Zielgewicht";
     document.getElementById("st-goal").innerText = `${goals.goalWeight.toFixed(1)} kg`;
-    document.getElementById("st-goal-date").innerText = `bis ${formatDE(goals.endDate)}`;
+    document.getElementById("st-goal-date").innerText = holdMode
+      ? `Korridor ± ${HOLD_TOLERANCE_KG.toFixed(1)} kg`
+      : `bis ${formatDE(goals.endDate)}`;
   } else {
+    document.getElementById("st-goal-label").innerText = "Zielgewicht";
     document.getElementById("st-goal").innerText = "Kein Ziel";
     document.getElementById("st-goal-date").innerText = "Noch nicht eingerichtet";
   }
@@ -672,6 +751,7 @@ function renderProfileData(prof) {
     document.getElementById("prog-pct").innerText = "0 % geschafft";
     document.getElementById("prog-rem").innerText = "noch -- kg";
     document.getElementById("prog-fill").style.width = "0%";
+    document.getElementById("btn-switch-hold").classList.add("hidden");
     if (chartInstance) chartInstance.destroy();
     return;
   }
@@ -680,15 +760,23 @@ function renderProfileData(prof) {
   const targetToday = calcTargetAt(latest.date, goals);
   const diff = latest.weight - targetToday;
   const isLossGoal = goals.goalWeight <= goals.startWeight;
-  const onTrack = isLossGoal ? diff <= 0 : diff >= 0;
+  const onTrack = holdMode
+    ? Math.abs(diff) <= HOLD_TOLERANCE_KG
+    : (isLossGoal ? diff <= 0 : diff >= 0);
 
-  // Kachel 1: Soll-Abweichung
+  // Kachel 1: Soll-Abweichung / Korridor-Abweichung
   const tileStatus = document.getElementById("tile-status");
   tileStatus.className = `stat-tile ${onTrack ? "status-good" : "status-bad"}`;
   const sign = diff > 0 ? "+" : "";
-  const statusShort = onTrack ? (isLossGoal ? "unter Soll" : "im Plan") : (isLossGoal ? "über Soll" : "unter Soll");
-  document.getElementById("st-diff").innerText = `${sign}${diff.toFixed(2)} kg`;
-  document.getElementById("st-target").innerText = `Soll: ${targetToday.toFixed(2)} kg (${statusShort})`;
+  if (holdMode) {
+    const corrStatus = onTrack ? `im Korridor (±${HOLD_TOLERANCE_KG} kg)` : "außerhalb Korridor";
+    document.getElementById("st-diff").innerText = `${sign}${diff.toFixed(2)} kg`;
+    document.getElementById("st-target").innerText = `${corrStatus}`;
+  } else {
+    const statusShort = onTrack ? (isLossGoal ? "unter Soll" : "im Plan") : (isLossGoal ? "über Soll" : "unter Soll");
+    document.getElementById("st-diff").innerText = `${sign}${diff.toFixed(2)} kg`;
+    document.getElementById("st-target").innerText = `Soll: ${targetToday.toFixed(2)} kg (${statusShort})`;
+  }
 
   // Kachel 2: 7-Tage-Schnitt vs. davor
   const comp7 = calculate7DayComparison(prof);
@@ -732,9 +820,11 @@ function renderProfileData(prof) {
       document.getElementById("st-rate").innerText = `${weekRate >= 0 ? "+" : ""}${weekRate.toFixed(2)} kg / Wo`;
       document.getElementById("st-kcal").innerText = kcalLabel;
 
-      const remDays = (new Date(goals.endDate) - dLast) / 86400000;
-      if (remDays > 0) {
-        prognosisPoint = { date: goals.endDate, weight: gLast + slopePerDay * remDays };
+      if (!holdMode) {
+        const remDays = (new Date(goals.endDate) - dLast) / 86400000;
+        if (remDays > 0) {
+          prognosisPoint = { date: goals.endDate, weight: gLast + slopePerDay * remDays };
+        }
       }
     }
   } else {
@@ -745,15 +835,25 @@ function renderProfileData(prof) {
   // Fortschritts-Karte
   const rawPct = calculateProgressPct(prof);
   const clampedPct = Math.max(0, Math.min(100, rawPct));
-  const remainingKg = Math.max(0, isLossGoal ? (latest.weight - goals.goalWeight) : (goals.goalWeight - latest.weight));
-
-  document.getElementById("prog-pct").innerText = `${Math.round(rawPct)} % geschafft`;
-  document.getElementById("prog-rem").innerText = remainingKg === 0 ? "Ziel erreicht! 🎉" : `noch ${remainingKg.toFixed(1)} kg`;
   const progFill = document.getElementById("prog-fill");
-  progFill.style.width = `${clampedPct}%`;
-  progFill.className = `progress-fill ${onTrack ? "good" : "bad"}`;
+  const holdSwitchBtn = document.getElementById("btn-switch-hold");
 
-  // Chart
+  if (holdMode) {
+    document.getElementById("prog-pct").innerText = onTrack ? "Halte-Modus aktiv" : "Außerhalb Toleranz";
+    document.getElementById("prog-rem").innerText = `${(goals.goalWeight - HOLD_TOLERANCE_KG).toFixed(1)} – ${(goals.goalWeight + HOLD_TOLERANCE_KG).toFixed(1)} kg`;
+    progFill.style.width = `${clampedPct}%`;
+    progFill.className = `progress-fill ${onTrack ? "good" : "bad"}`;
+    holdSwitchBtn.classList.add("hidden");
+  } else {
+    const remainingKg = Math.max(0, isLossGoal ? (latest.weight - goals.goalWeight) : (goals.goalWeight - latest.weight));
+    document.getElementById("prog-pct").innerText = `${Math.round(rawPct)} % geschafft`;
+    document.getElementById("prog-rem").innerText = remainingKg === 0 ? "Ziel erreicht! 🎉" : `noch ${remainingKg.toFixed(1)} kg`;
+    progFill.style.width = `${clampedPct}%`;
+    progFill.className = `progress-fill ${onTrack ? "good" : "bad"}`;
+    holdSwitchBtn.classList.toggle("hidden", !(own && remainingKg === 0));
+  }
+
+  // Chart mit CAD-artiger Spline-Glättung & Halte-Korridor
   const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const gridColor = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)";
   const tickColor = isDark ? "#94a3b8" : "#64748b";
@@ -761,46 +861,112 @@ function renderProfileData(prof) {
 
   let xMin = undefined;
   let xMax = undefined;
-  let sollData = [
-    { x: goals.startDate, y: goals.startWeight },
-    { x: goals.endDate, y: goals.goalWeight }
-  ];
+  const firstDate = entries[0].date;
+  const lastChartDate = holdMode
+    ? (latest.date > todayISO() ? latest.date : todayISO())
+    : goals.endDate;
+
+  let sollStart = holdMode ? firstDate : goals.startDate;
+  let sollEnd = lastChartDate;
 
   if (chartZoom === "30") {
     const thirtyDaysAgo = addDaysISO(todayISO(), -30);
-    xMin = thirtyDaysAgo > goals.startDate ? thirtyDaysAgo : goals.startDate;
+    xMin = thirtyDaysAgo > sollStart ? thirtyDaysAgo : sollStart;
     xMax = addDaysISO(todayISO(), 3);
-    if (xMax > goals.endDate) xMax = goals.endDate;
-
-    sollData = [
-      { x: xMin, y: calcTargetAt(xMin, goals) },
-      { x: xMax, y: calcTargetAt(xMax, goals) }
-    ];
+    if (!holdMode && xMax > goals.endDate) xMax = goals.endDate;
+    sollStart = xMin;
+    sollEnd = xMax;
   }
+
+  const sollData = [
+    { x: sollStart, y: calcTargetAt(sollStart, goals) },
+    { x: sollEnd, y: calcTargetAt(sollEnd, goals) }
+  ];
 
   const istData = entries.map(e => ({ x: e.date, y: e.weight }));
   const trendData = entries.map((e, idx) => ({ x: e.date, y: trendValues[idx] }));
-  const progData = (prognosisPoint && chartZoom === "all")
+  const progData = (!holdMode && prognosisPoint && chartZoom === "all")
     ? [{ x: latest.date, y: trendValues[trendValues.length - 1] }, { x: prognosisPoint.date, y: prognosisPoint.weight }]
     : [];
+
+  const datasets = [
+    {
+      label: holdMode ? "Haltegewicht" : "Soll",
+      data: sollData,
+      borderColor: holdMode ? "#16a34a" : "#94a3b8",
+      borderDash: [6, 6],
+      borderWidth: 2,
+      pointRadius: 0
+    },
+    {
+      label: "Messwerte",
+      data: istData,
+      borderColor: linePrimary,
+      backgroundColor: linePrimary,
+      borderWidth: 1.5,
+      pointRadius: 3
+    },
+    {
+      label: "7-Tage-Trend",
+      data: trendData,
+      borderColor: "#f97316",
+      borderWidth: 2.8,
+      pointRadius: 0,
+      tension: 0.4,
+      cubicInterpolationMode: "monotone"
+    }
+  ];
+
+  if (holdMode) {
+    datasets.push(
+      {
+        label: "Korridor (+1 kg)",
+        data: [{ x: sollStart, y: goals.goalWeight + HOLD_TOLERANCE_KG }, { x: sollEnd, y: goals.goalWeight + HOLD_TOLERANCE_KG }],
+        borderColor: "rgba(34, 197, 94, 0.35)",
+        borderDash: [3, 3],
+        borderWidth: 1,
+        pointRadius: 0
+      },
+      {
+        label: "Korridor (-1 kg)",
+        data: [{ x: sollStart, y: goals.goalWeight - HOLD_TOLERANCE_KG }, { x: sollEnd, y: goals.goalWeight - HOLD_TOLERANCE_KG }],
+        borderColor: "rgba(34, 197, 94, 0.35)",
+        backgroundColor: "rgba(34, 197, 94, 0.08)",
+        fill: "-1",
+        borderDash: [3, 3],
+        borderWidth: 1,
+        pointRadius: 0
+      }
+    );
+  } else if (progData.length > 0) {
+    datasets.push({
+      label: "Prognose",
+      data: progData,
+      borderColor: "#f97316",
+      borderDash: [4, 4],
+      borderWidth: 2,
+      pointRadius: 0
+    });
+  }
 
   if (chartInstance) chartInstance.destroy();
   const ctx = document.getElementById("weightChart").getContext("2d");
   chartInstance = new Chart(ctx, {
     type: "line",
-    data: {
-      datasets: [
-        { label: "Soll", data: sollData, borderColor: "#94a3b8", borderDash: [6, 6], borderWidth: 2, pointRadius: 0 },
-        { label: "Messwerte", data: istData, borderColor: linePrimary, backgroundColor: linePrimary, borderWidth: 1.5, pointRadius: 3 },
-        { label: "7-Tage-Trend", data: trendData, borderColor: "#f97316", borderWidth: 2.8, pointRadius: 0 },
-        { label: "Prognose", data: progData, borderColor: "#f97316", borderDash: [4, 4], borderWidth: 2, pointRadius: 0 }
-      ]
-    },
+    data: { datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: "top", labels: { boxWidth: 12, font: { size: 11 }, color: tickColor } },
+        legend: {
+          position: "top",
+          labels: {
+            boxWidth: 12,
+            font: { size: 11 },
+            color: tickColor,
+            filter: item => !item.text.startsWith("Korridor")
+          }
+        },
         tooltip: { callbacks: { title: (items) => formatDE(items[0].raw.x) } }
       },
       scales: {
@@ -832,6 +998,16 @@ function setTeamSort(mode) {
   document.getElementById("sort-progress").classList.toggle("active", mode === "progress");
   if (activeMainTab === "team") {
     showTeamView();
+  }
+}
+
+function setTeamZoom(mode) {
+  teamChartZoom = mode;
+  localStorage.setItem("wt_team_chart_zoom", mode);
+  document.getElementById("team-zoom-all").classList.toggle("active", mode === "all");
+  document.getElementById("team-zoom-30").classList.toggle("active", mode === "30");
+  if (activeMainTab === "team") {
+    renderTeamChart();
   }
 }
 
@@ -935,6 +1111,8 @@ function showTeamView() {
 
   document.getElementById("sort-streak").classList.toggle("active", teamSortBy === "streak");
   document.getElementById("sort-progress").classList.toggle("active", teamSortBy === "progress");
+  document.getElementById("team-zoom-all").classList.toggle("active", teamChartZoom === "all");
+  document.getElementById("team-zoom-30").classList.toggle("active", teamChartZoom === "30");
 
   renderSubgroupsList();
 
@@ -944,7 +1122,6 @@ function showTeamView() {
   let sumPct = 0;
   let activeGoalsCount = 0;
 
-  // Daten für alle Mitglieder vorbereiten und nach gewähltem Kriterium sortieren
   const enrichedMembers = members.map(m => {
     const prof = m.username;
     const streak = calculateStreak(prof);
@@ -970,6 +1147,7 @@ function showTeamView() {
     const goals = m.goals;
     const entries = m.entries || [];
     const rankIcon = medals[idx] || `${idx + 1}.`;
+    const holdMode = isMaintenanceMode(goals);
 
     const weighedToday = entries.some(e => e.date === today);
     const comp = calculate7DayComparison(prof);
@@ -983,11 +1161,23 @@ function showTeamView() {
 
     const isLossGoal = goals ? goals.goalWeight <= goals.startWeight : true;
     const latest = entries.length > 0 ? entries[entries.length - 1] : null;
-    const remKg = (goals && latest)
+    const remKg = (!holdMode && goals && latest)
       ? Math.max(0, isLossGoal ? (latest.weight - goals.goalWeight) : (goals.goalWeight - latest.weight))
       : null;
 
     const unlockedCount = (m.rewards || []).length;
+
+    let leftProgressLabel = "Noch kein Ziel";
+    let rightProgressLabel = "";
+    if (goals) {
+      if (holdMode) {
+        leftProgressLabel = `Halte-Modus (${goals.goalWeight.toFixed(1)} kg)`;
+        rightProgressLabel = `± ${HOLD_TOLERANCE_KG.toFixed(1)} kg`;
+      } else {
+        leftProgressLabel = `${Math.round(rawPct)} % geschafft`;
+        rightProgressLabel = remKg !== null ? (remKg === 0 ? "Ziel erreicht! 🎉" : `noch ${remKg.toFixed(1)} kg`) : "";
+      }
+    }
 
     return `
       <div class="card partner-card" onclick="openOtherProfile('${prof}')">
@@ -1003,8 +1193,8 @@ function showTeamView() {
         </div>
 
         <div class="progress-labels">
-          <span>${goals ? `${Math.round(rawPct)} % geschafft` : "Noch kein Ziel"}</span>
-          <span>${remKg !== null ? (remKg === 0 ? "Ziel erreicht! 🎉" : `noch ${remKg.toFixed(1)} kg`) : ""}</span>
+          <span>${leftProgressLabel}</span>
+          <span>${rightProgressLabel}</span>
         </div>
         <div class="progress-track">
           <div class="progress-fill" style="width: ${clampedPct}%;"></div>
@@ -1037,27 +1227,74 @@ function renderTeamChart() {
     return;
   }
 
+  // Für jedes Mitglied sowohl Rohwerte als auch dessen 7-Tage-Trend vorbereiten
+  const preparedMembers = activeMembers.map(m => {
+    const sorted = [...m.entries].sort((a, b) => a.date.localeCompare(b.date));
+    const trendEntries = sorted.map((e, i) => {
+      const slice = sorted.slice(Math.max(0, i - 6), i + 1);
+      const avg = slice.reduce((s, x) => s + x.weight, 0) / slice.length;
+      return { date: e.date, weight: avg };
+    });
+    return { goals: m.goals, rawEntries: sorted, trendEntries };
+  });
+
   const allDatesSet = new Set();
-  activeMembers.forEach(m => m.entries.forEach(e => allDatesSet.add(e.date)));
+  preparedMembers.forEach(pm => pm.rawEntries.forEach(e => allDatesSet.add(e.date)));
   const sortedDates = Array.from(allDatesSet).sort();
 
-  const teamSeries = sortedDates.map(date => {
-    let sumPct = 0;
-    for (const m of activeMembers) {
-      let lastEntry = null;
-      for (const e of m.entries) {
-        if (e.date <= date) lastEntry = e;
+  const rawTeamSeries = [];
+  const smoothTeamSeries = [];
+
+  for (const date of sortedDates) {
+    let sumRawPct = 0;
+    let sumTrendPct = 0;
+
+    for (const pm of preparedMembers) {
+      let lastRaw = null;
+      for (const e of pm.rawEntries) {
+        if (e.date <= date) lastRaw = e;
         else break;
       }
-      const w = lastEntry ? lastEntry.weight : m.goals.startWeight;
-      const pct = Math.max(0, Math.min(100, calculateProgressPctForWeight(w, m.goals)));
-      sumPct += pct;
+      const rawW = lastRaw ? lastRaw.weight : pm.goals.startWeight;
+      sumRawPct += Math.max(0, Math.min(100, calculateProgressPctForWeight(rawW, pm.goals)));
+
+      let lastTrend = null;
+      for (const te of pm.trendEntries) {
+        if (te.date <= date) lastTrend = te;
+        else break;
+      }
+      const trendW = lastTrend ? lastTrend.weight : pm.goals.startWeight;
+      sumTrendPct += Math.max(0, Math.min(100, calculateProgressPctForWeight(trendW, pm.goals)));
     }
-    return { x: date, y: Math.round((sumPct / activeMembers.length) * 10) / 10 };
-  });
+
+    rawTeamSeries.push({
+      x: date,
+      y: Math.round((sumRawPct / preparedMembers.length) * 10) / 10
+    });
+    smoothTeamSeries.push({
+      x: date,
+      y: Math.round((sumTrendPct / preparedMembers.length) * 10) / 10
+    });
+  }
 
   const minStart = activeMembers.reduce((min, m) => m.goals.startDate < min ? m.goals.startDate : min, activeMembers[0].goals.startDate);
   const maxEnd = activeMembers.reduce((max, m) => m.goals.endDate > max ? m.goals.endDate : max, activeMembers[0].goals.endDate);
+
+  let xMin = undefined;
+  let xMax = undefined;
+  let sollData = [{ x: minStart, y: 0 }, { x: maxEnd, y: 100 }];
+
+  if (teamChartZoom === "30") {
+    const thirtyDaysAgo = addDaysISO(todayISO(), -30);
+    xMin = thirtyDaysAgo > minStart ? thirtyDaysAgo : minStart;
+    xMax = addDaysISO(todayISO(), 3);
+    if (xMax > maxEnd) xMax = maxEnd;
+
+    const totalSpan = (new Date(maxEnd) - new Date(minStart)) / 86400000;
+    const pctAtMin = totalSpan > 0 ? Math.max(0, Math.min(100, ((new Date(xMin) - new Date(minStart)) / 86400000 / totalSpan) * 100)) : 0;
+    const pctAtMax = totalSpan > 0 ? Math.max(0, Math.min(100, ((new Date(xMax) - new Date(minStart)) / 86400000 / totalSpan) * 100)) : 100;
+    sollData = [{ x: xMin, y: pctAtMin }, { x: xMax, y: pctAtMax }];
+  }
 
   const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const gridColor = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)";
@@ -1070,14 +1307,30 @@ function renderTeamChart() {
       datasets: [
         {
           label: "Soll-Kurs",
-          data: [{ x: minStart, y: 0 }, { x: maxEnd, y: 100 }],
-          borderColor: "#94a3b8", borderDash: [6, 6], borderWidth: 2, pointRadius: 0
+          data: sollData,
+          borderColor: "#94a3b8",
+          borderDash: [6, 6],
+          borderWidth: 2,
+          pointRadius: 0
         },
         {
-          label: "Team-Fortschritt (%)",
-          data: teamSeries,
-          borderColor: "#8b5cf6", backgroundColor: "rgba(139, 92, 246, 0.14)",
-          fill: true, borderWidth: 2.8, pointRadius: 3, pointBackgroundColor: "#8b5cf6"
+          label: "Tageswerte",
+          data: rawTeamSeries,
+          borderColor: "rgba(139, 92, 246, 0.28)",
+          borderWidth: 1.5,
+          pointRadius: 2,
+          pointBackgroundColor: "rgba(139, 92, 246, 0.35)"
+        },
+        {
+          label: "Team-Trend",
+          data: smoothTeamSeries,
+          borderColor: "#8b5cf6",
+          backgroundColor: "rgba(139, 92, 246, 0.14)",
+          fill: true,
+          borderWidth: 3,
+          pointRadius: 0,
+          tension: 0.4,
+          cubicInterpolationMode: "monotone"
         }
       ]
     },
@@ -1095,7 +1348,8 @@ function renderTeamChart() {
       },
       scales: {
         x: {
-          type: "time", time: { unit: "day", tooltipFormat: "dd.MM.yyyy" },
+          type: "time", min: xMin, max: xMax,
+          time: { unit: "day", tooltipFormat: "dd.MM.yyyy" },
           grid: { color: gridColor },
           ticks: {
             maxTicksLimit: 6, font: { size: 10 }, color: tickColor,
@@ -1305,6 +1559,7 @@ function addDaysISO(isoStr, days) {
 }
 
 function calcTargetAt(dateStr, goals) {
+  if (isMaintenanceMode(goals)) return goals.goalWeight;
   const dStart = new Date(goals.startDate);
   const dEnd = new Date(goals.endDate);
   const dCurr = new Date(dateStr);
@@ -1331,6 +1586,8 @@ window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () 
 async function init() {
   document.getElementById("zoom-all").classList.toggle("active", chartZoom === "all");
   document.getElementById("zoom-30").classList.toggle("active", chartZoom === "30");
+  document.getElementById("team-zoom-all").classList.toggle("active", teamChartZoom === "all");
+  document.getElementById("team-zoom-30").classList.toggle("active", teamChartZoom === "30");
 
   if (authSession && appStore) {
     viewedProfile = authSession.username;
