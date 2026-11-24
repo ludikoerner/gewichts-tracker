@@ -3,9 +3,10 @@ export const HOLD_TOLERANCE_KG = 1.0;
 export const state = {
   authSession: JSON.parse(localStorage.getItem("wt_auth_session") || "null"),
   appStore: JSON.parse(localStorage.getItem("wt_app_store") || "null"),
-  activeMainTab: "mine",
+  activeMainTab: "verlauf", // "verlauf" | "trophies" | "team"
   viewedProfile: null,
   openedFromTeam: false,
+  showAllHistory: false,
   chartZoom: localStorage.getItem("wt_chart_zoom") || "all",
   teamChartZoom: localStorage.getItem("wt_team_chart_zoom") || "all",
   teamSortBy: localStorage.getItem("wt_team_sort") || "streak",
